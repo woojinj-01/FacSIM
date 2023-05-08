@@ -2,3 +2,6 @@ dataset/instList.xlsx
 dataset/dirty/*
 dataset/cleaned/*
 log/*
+!dataset/dirty/.gitkeep
+!dataset/cleaned/.gitkeep
+!log/.gitkeep
