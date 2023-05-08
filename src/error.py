@@ -6,7 +6,7 @@ Email: blankspace@kaist.ac.kr
 
 import sys
 import logging
-from enum import Enum
+from enum import Enum, auto
 import datetime as dt
 import os
 
@@ -24,11 +24,11 @@ def callStackRoutine(argFunction):
     return wrapper
 
 class LogType(Enum):
-    DEBUG = 0
-    INFO = 1
-    WARNING = 2
-    ERROR = 3
-    CRITICAL = 4
+    DEBUG = auto()
+    INFO = auto()
+    WARNING = auto()
+    ERROR = auto()
+    CRITICAL = auto()
 
 
 class LOGGER_C():

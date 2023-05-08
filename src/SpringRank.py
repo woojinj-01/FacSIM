@@ -25,6 +25,7 @@ from numba import jit
 from scipy.sparse import spdiags, csr_matrix
 from scipy.optimize import brentq
 import scipy.sparse.linalg
+import error
 
 import warnings
 from scipy.sparse import SparseEfficiencyWarning
@@ -162,5 +163,5 @@ def eqs39(beta, s, A):
 
 
 if(__name__ == '__main__'):
-    
+
     error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
