@@ -141,16 +141,17 @@ def calGiniCoeff(list):
 @error.callStackRoutine
 def readFileFor(argFilePath: str, argFileExtensionReq: list):   
     #recommended when converting a file to a dataframe. supports multiple file extension to be allowed
+    #returns empty dataframe on read fail
 
     if(not os.path.isfile(argFilePath)):
         error.LOGGER.report("Invalid File Path", error.LogType.WARNING)
-        return 0
+        return pd.DataFrame()
     
     fileExt = os.path.splitext(argFilePath)[1]
         
     if(fileExt not in argFileExtensionReq):
         error.LOGGER.report("Invalid File Extension", error.LogType.WARNING)
-        return 0
+        return pd.DataFrame()
     
     match fileExt:
         case '.csv':
@@ -159,7 +160,7 @@ def readFileFor(argFilePath: str, argFileExtensionReq: list):
             return pd.read_excel(argFilePath)
         case _:
             error.LOGGER.report("File Extension Not Supported", error.LogType.WARNING)
-            return 0
+            return pd.DataFrame()
 
     
 
@@ -169,7 +170,7 @@ def readFileFor(argFilePath: str, argFileExtensionReq: list):
 
 if(__name__ == '__main__'):
 
-    raise Exception("This Module is Not for Main Function")
+    error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
 
 
 

@@ -9,7 +9,7 @@ import error
 
 if(__name__ == '__main__'):
 
-    error.LOGGER = error.LOGGER_C(error.LogType.WARNING)
+    error.LOGGER = error.LOGGER_C(error.LogType.INFO)
 
     analyzer = analyzer.Analyzer()
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")

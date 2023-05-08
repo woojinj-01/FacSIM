@@ -11,7 +11,6 @@ import error
 import cleaner
 import institution
 import util
-import logging
 
 """
 class Analyzer
@@ -118,7 +117,7 @@ class Analyzer:
         
         instIdDf = util.readFileFor(argFilePath, ['.xlsx', '.csv'])
 
-        if(0 == instIdDf):
+        if(instIdDf.empty):
             error.LOGGER.report("Failed to Initialize InstID Dictionary", error.LogType.WARNING)
             return 0
         
@@ -235,7 +234,7 @@ class Analyzer:
 
 if(__name__ == '__main__'):
 
-    raise Exception("This Module is Not for Main Function")
+    error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
 
     
         

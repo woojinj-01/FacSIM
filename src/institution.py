@@ -240,6 +240,6 @@ class Alumni:
 
 
 if(__name__ == "__main__"):
-
-    raise Exception("This Module is Not for Main Function")
+    
+    error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
 

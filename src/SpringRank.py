@@ -158,3 +158,9 @@ def eqs39(beta, s, A):
             else:
                 x += (s[i] - s[j]) * (A[i, j] - (A[i, j] + A[j, i]) / (1 + np.exp(-2 * beta * (s[i] - s[j]))))
     return x
+
+
+
+if(__name__ == '__main__'):
+    
+    error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
