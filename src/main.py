@@ -47,8 +47,3 @@ if(__name__ == '__main__'):
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")
     
     analyzer.cleanData()
-    #analyzer.exportVertexAndEdgeListForAll(".csv")
-
-    #print(analyzer.calcGiniCoeffForAll())
-    analyzer.calcMVRRAnkForAll()
-    #analyzer.printAllInstitutions()
