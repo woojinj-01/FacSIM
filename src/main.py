@@ -47,10 +47,11 @@ if(__name__ == '__main__'):
 
     analyzer = analyzer.Analyzer()
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")
-    analyzer.exportVertexAndEdgeListForAll(util.FileExt.CSV)
 
-    util.callAndPrint(analyzer.calcGiniCoeffForAll)()
     analyzer.cleanData()
+
+    analyzer.exportVertexAndEdgeListForAll(util.FileExt.CSV)
+    util.callAndPrint(analyzer.calcGiniCoeffForAll)()
     
 
     
