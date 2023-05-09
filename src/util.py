@@ -3,16 +3,43 @@ Author: Woojin Jung (GitHub: woojinj-01)
 Email: blankspace@kaist.ac.kr
 
 """
-
 import pandas as pd
 import numpy as np
 import error
 import os
+from enum import Enum, auto
 
 lengthCompareThreshold = 3
 hammingDistanceRatioCompareThreshold = 0.25
 
 #iterator for each file (since column arrangement varies among files)
+
+class FileExt(Enum):
+    CSV = auto()
+    XLSX = auto()
+
+@error.callStackRoutine
+def strToFileExt(argFileExtStr: str) -> FileExt:
+    match argFileExtStr:
+        case '.csv':
+            return FileExt.CSV
+        case '.xlsx':
+            return FileExt.XLSX
+        case _:
+            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
+            return None
+        
+@error.callStackRoutine
+def fileExtToStr(argFileExt: FileExt) -> str:
+    match argFileExt:
+        case FileExt.CSV:
+            return '.csv'
+        case FileExt.XLSX:
+            return '.xlsx'
+        case _:
+            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
+            return None
+
 class rowIterator:
 
     @error.callStackRoutine
@@ -136,7 +163,7 @@ def calGiniCoeff(list):
             height_2 += np.float32(list[i+2]/totalSum*100)
 
     return np.float32((area_AnB - area_B)/area_AnB)
-
+        
 @error.callStackRoutine
 def readFileFor(argFilePath: str, argFileExtensionReq: list):   
     #recommended when converting a file to a dataframe. supports multiple file extension to be allowed
@@ -146,53 +173,38 @@ def readFileFor(argFilePath: str, argFileExtensionReq: list):
         error.LOGGER.report("Invalid File Path", error.LogType.WARNING)
         return pd.DataFrame()
     
-    fileExt = os.path.splitext(argFilePath)[1]
+    fileExt = strToFileExt(os.path.splitext(argFilePath)[1])
         
     if(fileExt not in argFileExtensionReq):
         error.LOGGER.report("Invalid File Extension", error.LogType.WARNING)
         return pd.DataFrame()
     
     match fileExt:
-        case '.csv':
+        case FileExt.CSV:
             return pd.read_csv(argFilePath)
-        case '.xlsx':
-            return pd.read_excel(argFilePath)
-        case _:
-            error.LOGGER.report("File Extension Not Supported", error.LogType.WARNING)
-            return pd.DataFrame()
-        
-@error.callStackRoutine
-def exportFileAs(argFilePath: str, argFileExtensionReq: list):   
-    #recommended when converting a file to a dataframe. supports multiple file extension to be allowed
-    #returns empty dataframe on read fail
-
-    if(not os.path.isfile(argFilePath)):
-        error.LOGGER.report("Invalid File Path", error.LogType.WARNING)
-        return pd.DataFrame()
-    
-    fileExt = os.path.splitext(argFilePath)[1]
-        
-    if(fileExt not in argFileExtensionReq):
-        error.LOGGER.report("Invalid File Extension", error.LogType.WARNING)
-        return pd.DataFrame()
-    
-    match fileExt:
-        case '.csv':
-            return pd.read_csv(argFilePath)
-        case '.xlsx':
+        case FileExt.XLSX:
             return pd.read_excel(argFilePath)
         case _:
             error.LOGGER.report("File Extension Not Supported", error.LogType.WARNING)
             return pd.DataFrame()
 
 @error.callStackRoutine
-def callAndExportAs(argFunction):
+def callAndPrint(argFunction):
     def wrapper(*args, **kwargs):
 
-        error.LOGGER.report("This Function is Not Implemented Yet", error.LogType.WARNING)
+        returnValue = argFunction(*args, **kwargs)
+        print(returnValue)
         
-        return argFunction
+        return returnValue
     return wrapper
+
+@error.callStackRoutine
+def getValuesListFromDict(argDict: dict) -> list:
+    return list(argDict.values())
+
+@error.callStackRoutine
+def getKeyListFromDict(argDict: dict) -> list:
+    return list(argDict.keys())
 
 if(__name__ == '__main__'):
 

@@ -3,9 +3,6 @@ Author: Woojin Jung (GitHub: woojinj-01)
 Email: blankspace@kaist.ac.kr
 
 """
-
-import pandas as pd
-import datetime as dt
 import os
 import error
 import cleaner
@@ -31,6 +28,23 @@ class Analyzer:
         self.__cleanerDict = {}
         self.instIdDict = {}
         self.instDict = {}
+        self.__cleanedFlag = 0
+
+    @error.callStackRoutine
+    def __raiseCleanedFlag(self):
+        self.__cleanedFlag = 1
+
+    @error.callStackRoutine
+    def __lowerCleanedFlag(self):
+        self.__cleanedFlag = 0
+    
+    @error.callStackRoutine
+    def __ifFlagRaised(self):
+        return int(1 == self.__cleanedFlag)
+    
+    @error.callStackRoutine
+    def __ifFlagNotRaised(self):
+        return int(0 == self.__cleanedFlag)
         
     @error.callStackRoutine
     def __queryInstDictById(self, argInstId):
@@ -60,6 +74,7 @@ class Analyzer:
     @error.callStackRoutine
     def getInstDict(self):
         return self.instDict
+    
     
     @error.callStackRoutine
     def printAllInstitutions(self):
@@ -115,7 +130,7 @@ class Analyzer:
     @error.callStackRoutine
     def loadInstIdDictFrom(self, argFilePath):
         
-        instIdDf = util.readFileFor(argFilePath, ['.xlsx', '.csv'])
+        instIdDf = util.readFileFor(argFilePath, [util.FileExt.XLSX, util.FileExt.CSV])
 
         if(instIdDf.empty):
             error.LOGGER.report("Failed to Initialize InstID Dictionary", error.LogType.WARNING)
@@ -133,7 +148,7 @@ class Analyzer:
     @error.callStackRoutine
     def __cleanDataForFile(self, argFilePath):
 
-        targetDf = pd.read_excel(argFilePath, engine = "openpyxl")
+        targetDf = util.readFileFor(argFilePath, [util.FileExt.XLSX, util.FileExt.CSV])
         rowIterator = util.rowIterator(targetDf.columns,'Degree')
 
         targetRow = None
@@ -150,6 +165,10 @@ class Analyzer:
 
     @error.callStackRoutine
     def cleanData(self):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+
         error.LOGGER.report("Start Cleaning Data", error.LogType.INFO)
 
         targetDir = '../dataset/dirty'
@@ -164,11 +183,16 @@ class Analyzer:
             if('.xlsx' == os.path.splitext(fileName)[1]):
                 self.__cleanDataForFile(os.path.join(targetDir, fileName))
 
+        self.__raiseCleanedFlag()
 
         error.LOGGER.report("Data are Cleaned Now!", error.LogType.INFO)
     
     @error.callStackRoutine
-    def exportVertexAndEdgeListFor(self, argField, argFileExtension):
+    def exportVertexAndEdgeListFor(self, argField, argFileExtension: util.FileExt):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
             return 0
@@ -178,19 +202,29 @@ class Analyzer:
         return 1
 
     @error.callStackRoutine
-    def exportVertexAndEdgeListForAll(self, argFileExtension):
-        error.LOGGER.report(" ".join(["Exporting All Fields as", argFileExtension]), error.LogType.INFO)
+    def exportVertexAndEdgeListForAll(self, argFileExtension: util.FileExt):
 
-        for cleaner in list(self.__cleanerDict.values()):
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+            return 0
+
+        error.LOGGER.report(" ".join(["Exporting All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
 
             if(str == type(cleaner.field)):
                 cleaner.exportVertexAndEdgeListAs(argFileExtension)
 
-        error.LOGGER.report(" ".join(["Exported All Fields as", argFileExtension]), error.LogType.INFO)
+        error.LOGGER.report(" ".join(["Exported All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
         return 1
     
     @error.callStackRoutine
     def calcGiniCoeffFor(self, argField):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+            return 0
+
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
             return 0
@@ -199,11 +233,16 @@ class Analyzer:
     
     @error.callStackRoutine
     def calcGiniCoeffForAll(self):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return dict()
+        
         error.LOGGER.report("Calculating Gini Coefficient for All Fields", error.LogType.INFO)
 
         giniCoeffDict = {}
 
-        for field in list(self.__cleanerDict.keys()):
+        for field in util.getKeyListFromDict(self.__cleanerDict):
             giniCoeffDict[field] = self.calcGiniCoeffFor(field)
 
         error.LOGGER.report("Sucesssfully Calculated Gini Coefficient for All Fields!", error.LogType.INFO)
@@ -211,19 +250,31 @@ class Analyzer:
     
     @error.callStackRoutine
     def calcMVRRAnkFor(self, argField):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+        
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
             return 0
+        
+        error.LOGGER.report(' '.join(["Calculating MVR Rank for", argField]), error.LogType.INFO)
 
         return self.__cleanerDict[argField].calcMVRRank()
     
     @error.callStackRoutine
     def calcMVRRAnkForAll(self):
+
+        if(self.__ifFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+        
         error.LOGGER.report("Calculating MVR Ranks for All Fields", error.LogType.INFO)
 
         returnValue = 1
 
-        for field in list(self.__cleanerDict.keys()):
+        for field in util.getKeyListFromDict(self.__cleanerDict):
             returnValue = returnValue and self.calcMVRRAnkFor(field)
 
         error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
@@ -235,13 +286,3 @@ class Analyzer:
 if(__name__ == '__main__'):
 
     error.LOGGER.report("This Module is Not for Main Function", error.LogType.CRITICAL)
-
-    
-        
-
-        
-
-
-        
-
-    

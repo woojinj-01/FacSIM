@@ -45,7 +45,7 @@ class Cleaner():
 
         # Dictonary holding institution ids, which are matched to institutions one by one.
         self.__localInstIdList = []
-
+    
     @error.callStackRoutine
     def __addToLocalInstIdList(self, argInstId):
 
@@ -186,6 +186,7 @@ class Cleaner():
 
     @error.callStackRoutine
     def calcSpringRank(self):
+
         error.LOGGER.report("Calculating SpringRank, which is approximation of MVR Rank", error.LogType.INFO)
         error.LOGGER.report("Copyright (c) 2017 Caterina De Bacco and Daniel B Larremore", error.LogType.INFO)
 
@@ -220,13 +221,14 @@ class Cleaner():
 
     @error.callStackRoutine
     def calcGiniCoeff(self):
+        
         error.LOGGER.report("Calculating Gini Coefficient on # of Alumni", error.LogType.INFO)
         error.LOGGER.report("Result of This Method Can be Unreliable", error.LogType.WARNING)
 
         instDict = self.analyzer.getInstDict()
         numAlumniList = []
 
-        for institution in list(instDict.values()):
+        for institution in util.getValuesListFromDict(instDict):
             if(institution.queryField(self.field)):
                 numAlumniList.append(institution.getTotalNumAlumniAt(self.field))
 
@@ -237,6 +239,7 @@ class Cleaner():
 
     @error.callStackRoutine
     def calcMVRRank(self):
+        
         error.LOGGER.report("Calculating MVR Rank", error.LogType.INFO)
 
         returnValue = self.calcSpringRank()
@@ -281,16 +284,16 @@ class Cleaner():
         self.__edgeList.to_csv(edgeFilePath, index = False, sep = '\t')
 
     @error.callStackRoutine
-    def exportVertexAndEdgeListAs(self, argFileExtension):
+    def exportVertexAndEdgeListAs(self, argFileExtension: util.FileExt):
 
         self.__genDestDir()
 
-        if('.xlsx' == argFileExtension):
+        if(util.FileExt.XLSX == argFileExtension):
             self.__exportXLSX()
-        elif('.csv' == argFileExtension):
+        elif(util.FileExt.CSV == argFileExtension):
             self.__exportCSV()
         else:
-            error.LOGGER.report(": ".join(["Invalid File Extension", argFileExtension], error.LogType.ERROR))
+            error.LOGGER.report(": ".join(["Invalid File Extension", util.fileExtToStr(argFileExtension)], error.LogType.ERROR))
 
 if(__name__ == '__main__'):
 

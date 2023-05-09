@@ -5,6 +5,7 @@ Email: blankspace@kaist.ac.kr
 """
 
 import sys
+import inspect
 import logging
 from enum import Enum, auto
 import datetime as dt
@@ -15,7 +16,7 @@ global LOGGER
 #Function decorator to record function call stack. (Do not modify)
 def callStackRoutine(argFunction):
     def wrapper(*args, **kwargs):
-        LOGGER.pushCallStack()
+        LOGGER.pushCallStack(argFunction.__name__)
 
         returnValue = argFunction(*args, **kwargs)
         
@@ -60,21 +61,19 @@ class LOGGER_C():
         logging.basicConfig(filename = self.logFilePath, format = "%(levelname)s: %(message)s", level=level)
         logging.critical(">>> Starting Logging: %s", dt.datetime.now().strftime("%Y%m%d %H:%M:%S"))
 
-    def pushCallStack(self):
+    def pushCallStack(self, argFuncName):
 
-        currentFunc = sys._getframe().f_back.f_back.f_code.co_name
+        currentFuncName = argFuncName
+        self.callStack.push(currentFuncName)
 
-        #currentFunc = inspect.stack()[1].function
-        self.callStack.push(currentFunc)
-
-        logging.debug("Function Called - %s", currentFunc)
+        logging.debug("Function Called - %s", currentFuncName)
 
 
     def popCallStack(self):
 
-        currentFunc = self.callStack.pop()
+        currentFuncName = self.callStack.pop()
 
-        logging.debug("Function Returns - %s", currentFunc)
+        logging.debug("Function Returns - %s", currentFuncName)
 
     def __reportDEBUG(self, argMessage):
         currentFunc = sys._getframe().f_back.f_back.f_code.co_name
@@ -167,4 +166,4 @@ def printErrorMessageAndExit(argMessage):
 
 if(__name__ == '__main__'):
 
-    raise Exception("This Module is Not for Main Function")
+    LOGGER.report("This Module is Not for Main Function", LogType.CRITICAL)

@@ -7,6 +7,7 @@ Email: blankspace@kaist.ac.kr
 import analyzer
 import error
 import argparse
+import util
 
 #not tracked by callstack routine
 def parseOptions():
@@ -35,6 +36,7 @@ def parseOptions():
 
     return returnDict
 
+#not tracked by callstack routine
 def parseOptionsAndInit():
     args = parseOptions()
     error.LOGGER = error.LOGGER_C(args['log'])
@@ -45,5 +47,10 @@ if(__name__ == '__main__'):
 
     analyzer = analyzer.Analyzer()
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")
-    
+    analyzer.exportVertexAndEdgeListForAll(util.FileExt.CSV)
+
+    util.callAndPrint(analyzer.calcGiniCoeffForAll)()
     analyzer.cleanData()
+    
+
+    

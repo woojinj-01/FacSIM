@@ -22,7 +22,7 @@ class InstInfo:
         instLocation:list = argInstLocationInfo.split(',')
         
         if(3 != len(instLocation)):
-            error.LOGGER.report("Invalid Institution Infof may Yield in Wrong Results", error.LogType.WARNING)
+            error.LOGGER.report("Invalid Institution Info Detected.", error.LogType.WARNING)
             return 0
     
 
