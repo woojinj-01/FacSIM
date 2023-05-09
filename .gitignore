@@ -6,3 +6,4 @@ src/__pycache__
 !dataset/dirty/.gitkeep
 !dataset/cleaned/.gitkeep
 !log/.gitkeep
+results.txt

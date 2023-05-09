@@ -28,22 +28,15 @@ class Analyzer:
         self.__cleanerDict = {}
         self.instIdDict = {}
         self.instDict = {}
+
         self.__cleanedFlag = 0
 
     @error.callStackRoutine
     def __raiseCleanedFlag(self):
         self.__cleanedFlag = 1
-
-    @error.callStackRoutine
-    def __lowerCleanedFlag(self):
-        self.__cleanedFlag = 0
     
     @error.callStackRoutine
-    def __ifFlagRaised(self):
-        return int(1 == self.__cleanedFlag)
-    
-    @error.callStackRoutine
-    def __ifFlagNotRaised(self):
+    def __ifCleanedFlagNotRaised(self):
         return int(0 == self.__cleanedFlag)
         
     @error.callStackRoutine
@@ -90,6 +83,10 @@ class Analyzer:
 
     @error.callStackRoutine
     def getCleanerFor(self, argField):
+
+        if(util.isEmptyData(argField)):
+            error.LOGGER.report("Attempt to generate Cleaner with empty value is suppressed",error.LogType.INFO)
+            return None
 
         if(0 == self.__queryCleanerDict(argField)):
             self.__cleanerDict[argField] = cleaner.Cleaner(self, argField)
@@ -157,17 +154,17 @@ class Analyzer:
         for numRow in range(len(targetDf.index)):
 
             targetRow = targetDf.iloc[numRow]
-            field = targetRow[7]
+            field = targetRow[rowIterator.findFirstIndex('Department', 'APPROX')]
 
-            self.getCleanerFor(field).cleanRow(targetRow, rowIterator)
+            cleaner = self.getCleanerFor(field)
+
+            if(None != cleaner):
+                cleaner.cleanRow(targetRow, rowIterator)
 
         error.LOGGER.report(" ".join([argFilePath, "is Cleaned"]), error.LogType.INFO)
 
     @error.callStackRoutine
     def cleanData(self):
-
-        if(self.__ifFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
 
         error.LOGGER.report("Start Cleaning Data", error.LogType.INFO)
 
@@ -190,11 +187,11 @@ class Analyzer:
     @error.callStackRoutine
     def exportVertexAndEdgeListFor(self, argField, argFileExtension: util.FileExt):
 
-        if(self.__ifFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
 
         if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
+            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
         
         self.__cleanerDict[argField].exportVertexAndEdgeListAs(argFileExtension)
@@ -204,8 +201,8 @@ class Analyzer:
     @error.callStackRoutine
     def exportVertexAndEdgeListForAll(self, argFileExtension: util.FileExt):
 
-        if(self.__ifFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
 
         error.LOGGER.report(" ".join(["Exporting All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
@@ -221,12 +218,12 @@ class Analyzer:
     @error.callStackRoutine
     def calcGiniCoeffFor(self, argField):
 
-        if(self.__ifFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.WARNING)
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
 
         if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
+            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
 
         return self.__cleanerDict[argField].calcGiniCoeff()
@@ -234,7 +231,7 @@ class Analyzer:
     @error.callStackRoutine
     def calcGiniCoeffForAll(self):
 
-        if(self.__ifFlagNotRaised()):
+        if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return dict()
         
@@ -250,13 +247,16 @@ class Analyzer:
     
     @error.callStackRoutine
     def calcMVRRAnkFor(self, argField):
+        if(type(argField) != str):
+            error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
+            return 0
 
-        if(self.__ifFlagNotRaised()):
+        if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
         
         if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.WARNING)
+            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
         
         error.LOGGER.report(' '.join(["Calculating MVR Rank for", argField]), error.LogType.INFO)
@@ -266,7 +266,7 @@ class Analyzer:
     @error.callStackRoutine
     def calcMVRRAnkForAll(self):
 
-        if(self.__ifFlagNotRaised()):
+        if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
         
@@ -280,8 +280,50 @@ class Analyzer:
         error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
 
         return returnValue
+    
+    @error.callStackRoutine
+    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
 
-        
+        returnDict = {}
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveBasedOnGender(argGender)
+
+        return returnDict
+    
+    @error.callStackRoutine
+    def calcAvgMVRMoveBasedOnGenderForField(self, argGender: util.Gender, argField: str):
+
+        if(0 == self.__queryCleanerDict(argField)):
+            error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
+
+        returnDict = {}
+
+        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveBasedOnGender(argGender)
+
+        return returnDict
+
+    @error.callStackRoutine
+    def calcAvgMVRMoveForRange(self, argPercentLow: int, argPercentHigh: int):
+
+        returnDict = {}
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveForRange(argPercentLow, argPercentHigh)
+
+        return returnDict
+
+    @error.callStackRoutine
+    def calcAvgMVRMoveForRangeForField(self, argPercentLow: int, argPercentHigh: int, argField: str):
+
+        if(0 == self.__queryCleanerDict(argField)):
+            error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
+
+        returnDict = {}
+
+        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveForRange(argPercentLow, argPercentHigh)
+
+        return returnDict     
 
 if(__name__ == '__main__'):
 

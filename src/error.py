@@ -65,15 +65,17 @@ class LOGGER_C():
 
         currentFuncName = argFuncName
         self.callStack.push(currentFuncName)
+        stackReprString = "--" * self.callStack.getHeight()
 
-        logging.debug("Function Called - %s", currentFuncName)
+        logging.debug("%s Function Called - %s", stackReprString, currentFuncName)
 
 
     def popCallStack(self):
-
+        
         currentFuncName = self.callStack.pop()
+        stackReprString = "--" * self.callStack.getHeight()
 
-        logging.debug("Function Returns - %s", currentFuncName)
+        logging.debug("%s Function Returns - %s", stackReprString, currentFuncName)
 
     def __reportDEBUG(self, argMessage):
         currentFunc = sys._getframe().f_back.f_back.f_code.co_name
@@ -137,7 +139,9 @@ class Stack:
         del self.items[stackLength-1]
         return result
     
-
+    def getHeight(self):
+        return len(self.items)
+    
     def push(self,x):
         self.items.append(x)
     

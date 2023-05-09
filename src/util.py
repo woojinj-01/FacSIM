@@ -7,17 +7,49 @@ import pandas as pd
 import numpy as np
 import error
 import os
+import math
 from enum import Enum, auto
 
 lengthCompareThreshold = 3
 hammingDistanceRatioCompareThreshold = 0.25
 
-#iterator for each file (since column arrangement varies among files)
 
+class Gender(Enum):
+    MALE = auto()
+    FEMALE = auto()
+
+@error.callStackRoutine
+def strToGender(argGenderString: str) -> Gender:
+
+    maleCandidateList = ['male', 'M']
+    femaleCandidateList = ['female', 'F']
+    
+    if(ifStrMatchesAmong(argGenderString, maleCandidateList)):
+        return Gender.MALE
+    elif(ifStrMatchesAmong(argGenderString, femaleCandidateList)):
+        return Gender.FEMALE
+    else:
+        return None
+    
+@error.callStackRoutine
+def genderToStr(argGender: Gender) -> str:
+
+    match argGender:
+        case Gender.MALE:
+            return 'M'
+        case Gender.FEMALE:
+            return 'F'
+        case _:
+            return str()
+
+#class FileExt
+#every file extension should be represented using this Enum class
 class FileExt(Enum):
     CSV = auto()
     XLSX = auto()
 
+#converts a string to a FileExt instance 
+# ex) argument: '.csv', return value: FileExt.CSV
 @error.callStackRoutine
 def strToFileExt(argFileExtStr: str) -> FileExt:
     match argFileExtStr:
@@ -28,7 +60,9 @@ def strToFileExt(argFileExtStr: str) -> FileExt:
         case _:
             error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
             return None
-        
+
+#converts a FileExt instance to astring
+# ex) argument: FileExt.CSV, return value: '.csv'
 @error.callStackRoutine
 def fileExtToStr(argFileExt: FileExt) -> str:
     match argFileExt:
@@ -39,7 +73,18 @@ def fileExtToStr(argFileExt: FileExt) -> str:
         case _:
             error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
             return None
+        
+@error.callStackRoutine
+def getMean(argList: list):
+    error.LOGGER.report("Careful to use. This function is not error tolerant yet", error.LogType.WARNING)
 
+    if(0 == len(argList)):
+        return 0
+    
+    return sum(argList)/len(argList)
+
+
+#iterator for each file (since column arrangement varies among files)
 class rowIterator:
 
     @error.callStackRoutine
@@ -47,6 +92,7 @@ class rowIterator:
         self.columnNames: pd.core.indexes.base.Index = argColumnNames
         self.index: int = 0
         self.targetColumn: str = argColumnToFind
+        self.approximation = 0
 
     @error.callStackRoutine
     def __iter__(self):
@@ -55,19 +101,43 @@ class rowIterator:
     @error.callStackRoutine
     def __next__(self):
 
-        while(self.targetColumn != self.columnNames[self.index].split('.')[0]):
-            self.index += 1
+        if(0 == self.approximation):
+            while(self.targetColumn != self.columnNames[self.index].split('.')[0]):
+                self.index += 1
 
-            if(self.index>=len(self.columnNames)):
-                raise StopIteration
+                if(self.index>=len(self.columnNames)):
+                    raise StopIteration
+                
+        elif(1 == self.approximation):
+            while(0 == areSameStrings(self.targetColumn, self.columnNames[self.index].split('.')[0])):
+                self.index += 1
+
+                if(self.index>=len(self.columnNames)):
+                    raise StopIteration
+                
+        else:
+            error.LOGGER.report("Invalid approximatioin flag.", error.LogType.ERROR)
+            raise StopIteration
 
         self.index+=1
 
         return self.index-1
-
+    
     @error.callStackRoutine
     def resetIndex(self):
         self.index = 0
+
+    @error.callStackRoutine
+    def setIndexTo(self, argIndex):
+        self.index = argIndex
+
+    @error.callStackRoutine
+    def enableApprox(self):
+        self.approximation = 1
+
+    @error.callStackRoutine
+    def disableApprox(self):
+        self.approximation = 0
     
     @error.callStackRoutine
     def changeTargetColumnTo(self, argColumnToFind: str):
@@ -77,6 +147,31 @@ class rowIterator:
     def changeTargetAndReset(self, argColumnToFind: str):
         self.changeTargetColumnTo(argColumnToFind)
         self.resetIndex()
+        self.disableApprox()
+
+    @error.callStackRoutine
+    def findFirstIndex(self, argColumnToFind: str, argApprox: str):
+
+        oldTarget = self.targetColumn
+        oldIndex = self.index
+
+        if('APPROX' == argApprox):
+            self.enableApprox()
+        elif('NOT_APPROX' == argApprox):
+            self.disableApprox()
+        else:
+            error.LOGGER.report("Invalid approximation argument.", error.LogType.ERROR)
+            return -1
+
+        self.changeTargetAndReset(argColumnToFind)
+
+        returnIndex =  self.__next__()
+
+        self.disableApprox()
+        self.setIndexTo(oldIndex)
+        self.changeTargetColumnTo(oldTarget)
+
+        return returnIndex
 
 #better way for string compare (strongly recommended)
 @error.callStackRoutine
@@ -102,12 +197,52 @@ def areSameStrings(argStr1: str, argStr2: str) -> int:
         if(argStr1[index] != argStr2[index]):
             hammingDistance += 1
 
+    if(int((hammingDistance/compareLength) <= hammingDistanceRatioCompareThreshold)):
+        return 1
 
     return int((hammingDistance/compareLength) <= hammingDistanceRatioCompareThreshold)
 
 @error.callStackRoutine
-def isEmptyData(argData: str) -> int:
-    return int('.' == argData)
+def ifStrMatchesAmong(argStr: str, argStrList: list) -> int:
+    for string in argStrList:
+        if(areSameStrings(argStr, string)):
+            return 1
+        
+    else:
+        return 0
+
+@error.callStackRoutine
+def isEmptyData(argData) -> int:
+
+    if(None == argData):
+        return 0
+    elif(type(argData) == str):
+        return int('.' == argData)
+    else:
+        return int(math.isnan(argData))
+    
+@error.callStackRoutine
+def sortObjectBasedOn(argObjectList: list, argScoreList: list):
+
+    if(len(argObjectList)!=len(argScoreList)):
+        error.LOGGER.report("Length of two list should be equal.", error.LogType.ERROR)
+
+    
+    scoreListSorted = sorted(argScoreList, reverse = False)
+    objectListSorted = []
+
+    mapDict = {}
+
+    for index in range(len(argScoreList)):
+        if(argScoreList[index] in mapDict):
+            mapDict[argScoreList[index]].append(argObjectList[index])
+        else:
+            mapDict[argScoreList[index]] = [argObjectList[index]]
+    
+    for score in scoreListSorted:
+        objectListSorted.append(mapDict[score].pop())
+
+    return objectListSorted
 
 @error.callStackRoutine
 def getRankBasedOn(argScoreList: list) -> list:

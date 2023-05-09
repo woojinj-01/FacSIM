@@ -6,6 +6,7 @@ Email: blankspace@kaist.ac.kr
 
 import util
 import error
+from enum import Enum, auto
 
 class InstInfo:
 
@@ -63,8 +64,18 @@ class InstInfo:
         print(self.region)
         print(self.country)
         print("==========================")
-    
 
+
+class AlumnusInfo:
+
+    @error.callStackRoutine
+    def __init__(self, argField: str, argCurrentRank: str, argGender: util.Gender, argPhDInstId, argApInstId):
+        self.field: str = argField
+        self.currentRank: str = argCurrentRank
+        self.gender: util.Gender = argGender
+        self.phDInstId: int = argPhDInstId
+        self.apInstId: int = argApInstId
+        
 class Institution:
 
     @error.callStackRoutine
@@ -93,6 +104,7 @@ class Institution:
 
             department = self.fieldDict[item[0]]
             department.printInfo()
+            department.printAlumniInfo()
 
 
         print("===========================================================")
@@ -103,7 +115,6 @@ class Institution:
         argList.append(self.name)
         argList.append(self.region)
         argList.append(self.country)
-
 
     @error.callStackRoutine
     def getField(self, argField):
@@ -121,6 +132,13 @@ class Institution:
         return int(argField in self.fieldDict)
     
     @error.callStackRoutine
+    def getFieldIfExists(self, argField):
+        if(self.queryField(argField)):
+            return self.getField(argField)
+        else:
+            return None
+    
+    @error.callStackRoutine
     def setMVRRankAt(self, argField, argMVRRank):
 
         self.getField(argField).MVRRank = argMVRRank
@@ -131,10 +149,10 @@ class Institution:
         return self.getField(argField).MVRRank
     
     @error.callStackRoutine
-    def addAlumnusAt(self, argField, argDestInstitutionId, argCurrentRank, argGender):
+    def addAlumnusAt(self, argAlumnusInfo: AlumnusInfo):
 
-        if(self.queryField(argField)):
-            return self.getField(argField).addAlumnusWentTo(argDestInstitutionId, argCurrentRank, argGender)
+        if(self.queryField(argAlumnusInfo.field)):
+            return self.getField(argAlumnusInfo.field).addAlumnusWentTo(argAlumnusInfo)
         
         return None
 
@@ -182,9 +200,12 @@ class InstituionAtField(Institution):
         self.field = argField
         self.MVRRank = None
         self.alumniDict = {}
+        self.alumniDictWithGenderKey = {}
 
     @error.callStackRoutine
     def printInfo(self):
+        
+        print("")
         
         print("=== Field: ", self.field, "===")
         print("MVR Ranking: ", self.MVRRank)
@@ -192,15 +213,25 @@ class InstituionAtField(Institution):
 
         print("")
 
+    def printAlumniInfo(self):
+        for alumniList in util.getValuesListFromDict(self.alumniDict):
+            for alumnus in alumniList:
+                alumnus.printInfo()
+
     @error.callStackRoutine
-    def addAlumnusWentTo(self, argDestInstitutionId, argCurrentRank, argGender):
+    def addAlumnusWentTo(self, argAlumnusInfo: AlumnusInfo):
 
-        newAlumnus = Alumni(argCurrentRank, argGender)
+        newAlumnus = Alumni(argAlumnusInfo)
 
-        if(argDestInstitutionId in self.alumniDict):
-            self.alumniDict[argDestInstitutionId].append(newAlumnus)
+        if(argAlumnusInfo.apInstId in self.alumniDict):
+            self.alumniDict[argAlumnusInfo.apInstId].append(newAlumnus)
         else:
-            self.alumniDict[argDestInstitutionId] = [newAlumnus]
+            self.alumniDict[argAlumnusInfo.apInstId] = [newAlumnus]
+
+        if(argAlumnusInfo.gender in self.alumniDictWithGenderKey):
+            self.alumniDictWithGenderKey[argAlumnusInfo.gender].append(newAlumnus)
+        else:
+            self.alumniDictWithGenderKey[argAlumnusInfo.gender] = [newAlumnus]
 
     @error.callStackRoutine
     def getAlumniWentTo(self, argDestInstitutionId):
@@ -226,16 +257,31 @@ class InstituionAtField(Institution):
         
         return totalNumAlumni
 
-
-
-
 class Alumni:
 
     @error.callStackRoutine
-    def __init__(self, argCurrentRank, argGender):
+    def __init__(self, argAlumnusInfo: AlumnusInfo):
 
-        self.currentRank = argCurrentRank
-        self.gender = argGender
+        self.field = argAlumnusInfo.field
+        self.currentRank = argAlumnusInfo.currentRank
+        self.gender = argAlumnusInfo.gender
+        self.phDInstId = argAlumnusInfo.phDInstId
+        self.apInstId = argAlumnusInfo.apInstId
+
+        del argAlumnusInfo
+
+    @error.callStackRoutine
+    def printInfo(self):
+
+        print("")
+
+        print("---------------------")
+        print("Field: ", self.field)
+        print("Current Rank: ",self.currentRank)
+        print("Gender: ", util.genderToStr(self.gender))
+        print("PhD Inst ID: ", self.phDInstId)
+        print("AP Inst ID: ", self.apInstId)
+        print("---------------------")
 
 
 

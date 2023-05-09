@@ -12,6 +12,7 @@ import util
 import institution
 import numpy as np
 import SpringRank as sp
+import math
 
 """
 class Cleaner
@@ -45,6 +46,9 @@ class Cleaner():
 
         # Dictonary holding institution ids, which are matched to institutions one by one.
         self.__localInstIdList = []
+
+        # Flag that indicates MVR ranks are calculated.
+        self.__MVRRankFlag = 0
     
     @error.callStackRoutine
     def __addToLocalInstIdList(self, argInstId):
@@ -147,15 +151,18 @@ class Cleaner():
             error.LOGGER.report("This Row does not Contain PhD or AP Info", error.LogType.WARNING)
             return 0
         
-        currentRank = argTargetRow[8]
-        gender = argTargetRow[9]
+        currentRank = argTargetRow[argRowIterator.findFirstIndex("Current Rank", "APPROX")]
+        gender = util.genderToStr(util.strToGender(\
+            argTargetRow[argRowIterator.findFirstIndex("Sex", "APPROX")]))
         
         edgeRow.append(phDInst.instId)
         edgeRow.append(apInst.instId)
         edgeRow.append(gender)
 
         #add alumnus info
-        phDInst.addAlumnusAt(self.field, apInst.instId, currentRank, gender)
+        gender = util.strToGender(gender)
+        almnusInfo = institution.AlumnusInfo(self.field, currentRank, gender, phDInst.instId, apInst.instId)
+        phDInst.addAlumnusAt(almnusInfo)
 
 
         if(1 == newVertexRowsCreated):
@@ -244,9 +251,103 @@ class Cleaner():
 
         returnValue = self.calcSpringRank()
 
+        self.__MVRRankFlag = 1
+
         error.LOGGER.report("Sucessfully Calculated MVR Rank!", error.LogType.INFO)
         return returnValue
     
+    @error.callStackRoutine
+    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
+
+        if(0 == self.__MVRRankFlag):
+            error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
+            return 0
+
+        if(argGender not in util.Gender):
+            error.LOGGER.report("Invalid Gender", error.LogType.WARNING)
+            return 0
+
+        instDict = self.analyzer.getInstDict()
+        rankMovementList = []
+
+        for inst in util.getValuesListFromDict(instDict):
+            
+            department = inst.getFieldIfExists(self.field)
+
+            if(None != department):    #institution has self.field field
+                if(argGender in department.alumniDictWithGenderKey):
+                    for alumnus in department.alumniDictWithGenderKey[argGender]:
+                        phDInstRank = instDict[alumnus.phDInstId].getMVRRankAt(self.field)
+                        apInstRank = instDict[alumnus.apInstId].getMVRRankAt(self.field)
+
+                        rankMovementList.append(apInstRank - phDInstRank)
+
+
+        return util.getMean(rankMovementList)
+    
+    @error.callStackRoutine
+    def calcAvgMVRMoveForRange(self, argPercentLow: int, argPercentHigh: int):
+
+        if(0 == self.__MVRRankFlag):
+            error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
+            return 0
+
+        if(argPercentLow<=0):
+            error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
+        elif(argPercentLow>100):
+            error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
+        elif(int(argPercentLow) != argPercentLow):
+            error.LOGGER.report("Invalid percentage. Floating point number not allowed.", error.LogType.WARNING)
+        else:
+            pass
+
+        if(argPercentHigh<=0):
+            error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
+        elif(argPercentHigh>100):
+            error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
+        elif(int(argPercentHigh) != argPercentHigh):
+            error.LOGGER.report("Invalid percentage. Floating point number not allowed.", error.LogType.WARNING)
+        else:
+            pass
+
+        if(argPercentLow > argPercentHigh):
+            error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
+
+        error.LOGGER.report("This function (incomplete) doees not calculate based on percentage.", error.LogType)
+
+        rankMovementList = []
+
+        rankList = []
+        instList = []
+
+        instDict = self.analyzer.getInstDict()
+        
+        for inst in util.getValuesListFromDict(instDict):
+            department = inst.getFieldIfExists(self.field)
+
+            if(None != department):    #institution has self.field field
+                instList.append(inst)
+                rankList.append(inst.getMVRRankAt(self.field))
+
+        rankLowerBound = math.ceil(float(len(rankList) * argPercentLow / 100))
+        rankUpperBound = math.floor(float(len(rankList)* argPercentHigh / 100))
+
+        
+        instListSorted = util.sortObjectBasedOn(instList, rankList)
+        
+        for inst in instListSorted[rankLowerBound:rankUpperBound+1]:
+            department = inst.getFieldIfExists(self.field)
+
+            if(None != department):    #institution has self.field field
+                for alumni in util.getValuesListFromDict(department.alumniDict):
+                    for alumnus in alumni:
+                        phDInstRank = instDict[alumnus.phDInstId].getMVRRankAt(self.field)
+                        apInstRank = instDict[alumnus.apInstId].getMVRRankAt(self.field)
+
+                        rankMovementList.append(apInstRank - phDInstRank)
+
+        return util.getMean(rankMovementList)
+
     @error.callStackRoutine
     def __exportXLSX(self):
 
