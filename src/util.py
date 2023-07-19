@@ -9,10 +9,275 @@ import error
 import os
 import math
 from enum import Enum, auto
+import matplotlib
+import matplotlib.pyplot as plt
+import datetime as dt
+import sys
+import configparser
+
+global TYPOHISTORY
 
 lengthCompareThreshold = 3
 hammingDistanceRatioCompareThreshold = 0.25
 
+goldDateStr = None
+goldTimeStr = None
+
+fieldClassificationDict = {'Physics': ['Physics', 'Applied Physics', 'Electrical and Biological Physics', \
+                                       'Physics and Astronomy', 'Physics and Engineering'], \
+                            'Computer Science': ['Artificial Intelligence', 'Autonomous Things Intelligence', \
+                                        'College of Computing', 'Computer and Information Engineering', \
+                                        'Computer and Software Engineering', 'Computer and Telecommunications Engineering', \
+                                        'Computer Convergence Software', 'Computer Engineering', 'Computer Engineerinng', \
+                                        'Computer Information Communication', 'Computer Informatoin Engineering', \
+                                        'Computer Science and Engineering', 'Computer Science and Information Engineering', \
+                                        'Computer Science and Software', 'Computer Science', 'Computer Software', \
+                                        'Computer', 'ComputerScience', 'Computing', 'Department of Computer Science and Engineering', \
+                                        'Electrical Engineering and Computer Science', 'Information and Communication Engineering', \
+                                        'Information Convergence', 'Mobile Systems Engineering', 'Multimedia Engineering', \
+                                        'Software and Computer Engineering', 'Software Science', 'Software']}
+
+class HistType(Enum):
+    LOCAL = auto()
+    GLOBAL = auto()
+
+class TypoHistory:
+    def __init__(self, argAbled):
+
+        globalHistPath = "../ini/globalTypoHistory.ini"
+
+        globalConfig = None
+
+        if(not os.path.exists(globalHistPath)):
+            (os.open(globalHistPath, 'w')).close()
+
+        globalConfig = configparser.ConfigParser(allow_no_value = True)
+        globalConfig.read(globalHistPath, encoding='utf-8')
+
+        self.globalConfig = globalConfig
+        self.localConfig = configparser.ConfigParser(allow_no_value = True)
+
+        self.localHistoryDict = {}
+        self.abled = 1
+
+        if(not argAbled):
+            self.abled = 0
+    
+    @error.callStackRoutine
+    def __addTripletToConfig(self, argConfigType, argSrcStr1, argSrcStr2, argDstStr):
+
+        if(HistType.LOCAL == argConfigType):
+            config = self.localConfig
+        elif(HistType.GLOBAL == argConfigType):
+            config = self.globalConfig
+        else:
+            error.LOGGER.report("argConfigType: Invalid config type.", error.LogType.ERROR)
+            return None
+            
+        if(not config.has_section(argSrcStr1)):
+            config.add_section(argSrcStr1)
+
+        config.set(argSrcStr1, argSrcStr2, argDstStr)
+
+    @error.callStackRoutine
+    def __readTripletFromConfig(self, argConfigType, argSrcStr1, argSrcStr2):
+        if(HistType.LOCAL == argConfigType):
+            config = self.localConfig
+        elif(HistType.GLOBAL == argConfigType):
+            config = self.globalConfig
+        else:
+            error.LOGGER.report("argConfigType: Invalid config type.", error.LogType.ERROR)
+            return None
+
+        if(config.has_section(argSrcStr1) and config.has_option(argSrcStr1, argSrcStr2)):
+            return config.get(argSrcStr1, argSrcStr2)
+        else:
+            return None
+        
+    @error.callStackRoutine
+    def flush(self):
+
+        globalHistPath = "../ini/globalTypoHistory.ini"
+
+        self.globalConfig.update(self.localConfig)
+
+        with open(globalHistPath, 'w') as globalTypoHistroy:
+            self.globalConfig.write(globalTypoHistroy)
+
+    @error.callStackRoutine
+    def writeHistory(self, argSrcStr1: str, argSrcStr2: str, argDstStr: str):
+        if(not self.abled):
+            error.LOGGER.report("User-interactive typo correction is disabled", error.LogType.DEBUG)
+            return 0
+        
+        self.__addTripletToConfig(HistType.LOCAL, argSrcStr1, argSrcStr2, argDstStr)
+
+        return 1
+    
+    @error.callStackRoutine
+    def readHistory(self, argSrcStr1: str, argSrcStr2: str):
+        if(not self.abled):
+            error.LOGGER.report("User-interactive typo correction is disabled", error.LogType.DEBUG)
+            return 0
+
+        globalHistRead = self.__readTripletFromConfig(HistType.GLOBAL, argSrcStr1, argSrcStr2)
+
+        if(None != globalHistRead):
+            return globalHistRead
+        
+        localHistRead = self.__readTripletFromConfig(HistType.LOCAL, argSrcStr1, argSrcStr2)
+
+        if(None != localHistRead):
+            return localHistRead
+        
+        return None
+        
+#class FileExt
+#every file extension should be represented using this Enum class
+class FileExt(Enum):
+    CSV = auto()
+    XLSX = auto()
+    PNG = auto()
+    JPG = auto()
+    TXT = auto()
+
+#converts a string to a FileExt instance 
+# ex) argument: '.csv', return value: FileExt.CSV
+@error.callStackRoutine
+def strToFileExt(argFileExtStr: str) -> FileExt:
+    match argFileExtStr:
+        case '.csv':
+            return FileExt.CSV
+        case '.xlsx':
+            return FileExt.XLSX
+        case '.png':
+            return FileExt.PNG
+        case '.jpg':
+            return FileExt.JPG
+        case '.txt':
+            return FileExt.TXT
+        case _:
+            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
+            return None
+
+#converts a FileExt instance to astring
+# ex) argument: FileExt.CSV, return value: '.csv'
+@error.callStackRoutine
+def fileExtToStr(argFileExt: FileExt) -> str:
+    match argFileExt:
+        case FileExt.CSV:
+            return '.csv'
+        case FileExt.XLSX:
+            return '.xlsx'
+        case FileExt.PNG:
+            return '.png'
+        case FileExt.JPG:
+            return '.jpg'
+        case FileExt.TXT:
+            return '.txt'
+        case _:
+            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
+            return None
+
+@error.callStackRoutine
+def getPlotPath(argSubject, argPlotType, argField, *argOthers) -> str:
+
+    if(None != goldDateStr):
+        currentDateStr = goldDateStr
+    else:
+        currentDateStr = dt.datetime.now().strftime("%Y_%m_%d")
+    
+    if(None != goldTimeStr):
+        currentTimeStr = goldTimeStr
+    else:
+        currentTimeStr = dt.datetime.now().strftime("%H:%M:%S")
+
+    targetDir = "../plot/" + currentDateStr + "/" + currentTimeStr
+
+    if(not os.path.exists(targetDir)):
+        os.makedirs(targetDir)
+
+    plotNameList = [currentTimeStr, argSubject, argPlotType, argField]
+
+    for word in argOthers:
+        plotNameList.append(str(word))
+
+    return targetDir + "/" + '_'.join(plotNameList) + ".png"
+
+@error.callStackRoutine
+def getCleanedFilePath(argSubject, argField, argFileExt: FileExt, *argOthers) -> str:
+
+    if(None != goldDateStr):
+        currentDateStr = goldDateStr
+    else:
+        currentDateStr = dt.datetime.now().strftime("%Y_%m_%d")
+    
+    if(None != goldTimeStr):
+        currentTimeStr = goldTimeStr
+    else:
+        currentTimeStr = dt.datetime.now().strftime("%H_%M_%S")
+
+    targetDir = "../dataset/cleaned/" + argField + "/" + currentDateStr + "/" + currentTimeStr
+
+    if(not os.path.exists(targetDir)):
+        os.makedirs(targetDir)
+
+    cleanedFileNameList = [argSubject, argField, currentDateStr, currentTimeStr]
+
+    for word in argOthers:
+        cleanedFileNameList.append(str(word))
+
+    return targetDir + "/" + '_'.join(cleanedFileNameList) + fileExtToStr(argFileExt)
+
+@error.callStackRoutine
+def getResultFilePath(argFileExt: FileExt) -> str:
+    currentDateStr = dt.datetime.now().strftime("%Y_%m_%d")
+    currentTimeStr = dt.datetime.now().strftime("%H_%M_%S")
+
+    targetDir = "../result/" + currentDateStr
+
+    if(not os.path.exists(targetDir)):
+        os.makedirs(targetDir)
+
+    resultFileNameList = ["Result", currentDateStr, currentTimeStr]
+
+    return targetDir + "/" + '_'.join(resultFileNameList) + fileExtToStr(argFileExt)
+
+
+
+@error.callStackRoutine
+def getRidOfTie(argRankList: list) -> list:
+
+    tieRankCountDict = {}
+    newRankDict = {}
+
+    returnRankList = []
+    
+    for rank in argRankList:
+        if(rank in tieRankCountDict):
+            tieRankCountDict[rank] +=1
+        else:
+            tieRankCountDict[rank] = 1
+
+    for rankI in argRankList:
+        if(rankI in newRankDict):
+            newRankDict[rankI].append(newRankDict[rankI][-1] + 1)
+            continue
+        
+        newRank = 1
+        
+        for rankJ in range(1, rankI):
+
+            if(rankJ in tieRankCountDict):
+                newRank += tieRankCountDict[rankJ]
+
+        newRankDict[rankI] = [newRank]
+    
+    
+    for rank in argRankList:
+        returnRankList.append(newRankDict[rank].pop(0))
+
+    return returnRankList
 
 class Gender(Enum):
     MALE = auto()
@@ -41,39 +306,17 @@ def genderToStr(argGender: Gender) -> str:
             return 'F'
         case _:
             return str()
-
-#class FileExt
-#every file extension should be represented using this Enum class
-class FileExt(Enum):
-    CSV = auto()
-    XLSX = auto()
-
-#converts a string to a FileExt instance 
-# ex) argument: '.csv', return value: FileExt.CSV
-@error.callStackRoutine
-def strToFileExt(argFileExtStr: str) -> FileExt:
-    match argFileExtStr:
-        case '.csv':
-            return FileExt.CSV
-        case '.xlsx':
-            return FileExt.XLSX
-        case _:
-            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
-            return None
-
-#converts a FileExt instance to astring
-# ex) argument: FileExt.CSV, return value: '.csv'
-@error.callStackRoutine
-def fileExtToStr(argFileExt: FileExt) -> str:
-    match argFileExt:
-        case FileExt.CSV:
-            return '.csv'
-        case FileExt.XLSX:
-            return '.xlsx'
-        case _:
-            error.LOGGER.report("Invalid Argument", error.LogType.WARNING)
-            return None
         
+@error.callStackRoutine
+def gatherSimilarFields(argField: str) -> str:
+
+    for parentField in getKeyListFromDict(fieldClassificationDict):
+        for childField in fieldClassificationDict[parentField]:
+            if(areSameStrings(argField, childField)):
+                return parentField
+            
+    return argField
+
 @error.callStackRoutine
 def getMean(argList: list):
     error.LOGGER.report("Careful to use. This function is not error tolerant yet", error.LogType.WARNING)
@@ -172,6 +415,43 @@ class rowIterator:
         self.changeTargetColumnTo(oldTarget)
 
         return returnIndex
+    
+@error.callStackRoutine
+def userSelectsString(argStr1: str, argStr2: str) -> str:
+
+    if(argStr1 == argStr2):
+        return argStr1
+    elif(not TYPOHISTORY.abled):
+        return argStr1
+    elif(isEmptyData(argStr1)):
+        return argStr1
+    
+    history = TYPOHISTORY.readHistory(argStr1, argStr2)
+
+    if(None != history):
+        return history
+    
+    originalStream = sys.stdout
+    sys.stdout = sys.__stdout__
+
+    print("========== Typo Correction ==========")
+        
+    while(1):
+
+        print("Press 1 to Use", argStr1)
+        print("Press 2 to Merge", argStr1, "To", argStr2)
+
+        select = int(input())
+
+        dstStr = argStr1 if 1 == select else argStr2 if 2 == select else None
+
+        if(None == dstStr):
+            print("Wrong Key. Press 1 or 2")
+        else:
+            TYPOHISTORY.writeHistory(argStr1, argStr2, dstStr)
+            sys.stdout = originalStream
+            return dstStr
+
 
 #better way for string compare (strongly recommended)
 @error.callStackRoutine
@@ -182,25 +462,75 @@ def areSameStrings(argStr1: str, argStr2: str) -> int:
     
     if(type(argStr2) != str):
         return 0
-
-
-    if(abs(len(argStr1) - len(argStr2) > 3)):
-       return 0
     
-    if(argStr1.lower() == argStr2.lower()):
+    compactStr1 = argStr1.replace(" ", "")
+    compactStr2 = argStr2.replace(" ", "")
+
+    if(compactStr1.lower() == compactStr2.lower()):
+        return 1
+    elif(compactStr1.lower() in compactStr2.lower()):
+        return 1
+    elif(compactStr1.lower() in compactStr2.lower()):
         return 1
     
-    compareLength = min([len(argStr1), len(argStr2)])
-    hammingDistance = 0
+    hammingStr1 = compactStr1.replace("university", "")
+    hammingStr2 = compactStr2.replace("university", "")
+
+    if(lengthCompareThreshold <= abs(len(hammingStr1) - len(hammingStr2))):
+        return 0
+
+    compareLength = min([len(hammingStr1), len(hammingStr2)])
+    hammingDistance = 0 
 
     for index in range(compareLength):
-        if(argStr1[index] != argStr2[index]):
+        if(hammingStr1[index] != hammingStr2[index]):
             hammingDistance += 1
 
     if(int((hammingDistance/compareLength) <= hammingDistanceRatioCompareThreshold)):
         return 1
+    
+    return 0
 
-    return int((hammingDistance/compareLength) <= hammingDistanceRatioCompareThreshold)
+@error.callStackRoutine
+def areSameStringsInteractive(argStr1: str, argStr2: str) -> int:
+
+    if(type(argStr1) != str):
+        return 0
+    
+    if(type(argStr2) != str):
+        return 0
+    
+    compactStr1 = argStr1.replace(" ", "")
+    compactStr2 = argStr2.replace(" ", "")
+    
+    if(compactStr1.lower() == compactStr2.lower()):
+        return userSelectsString(argStr1, argStr2)
+    elif(compactStr1.lower() in compactStr2.lower()):
+        return userSelectsString(argStr1, argStr2)
+    elif(compactStr1.lower() in compactStr2.lower()):
+        return userSelectsString(argStr1, argStr2)
+    elif(compactStr1 in compactStr2):
+        return userSelectsString(argStr1, argStr2)
+    elif(compactStr2 in compactStr1):
+        return userSelectsString(argStr1, argStr2)
+    
+    hammingStr1 = compactStr1.replace("university", "")
+    hammingStr2 = compactStr2.replace("university", "")
+
+    if(lengthCompareThreshold <= abs(len(hammingStr1) - len(hammingStr2))):
+        return 0
+
+    compareLength = min([len(hammingStr1), len(hammingStr2)])
+    hammingDistance = 0
+
+    for index in range(compareLength):
+        if(hammingStr1[index] != hammingStr2[index]):
+            hammingDistance += 1
+
+    if(int((hammingDistance/compareLength) <= hammingDistanceRatioCompareThreshold)):
+        return userSelectsString(argStr1, argStr2)
+    
+    return 0
 
 @error.callStackRoutine
 def ifStrMatchesAmong(argStr: str, argStrList: list) -> int:
@@ -208,16 +538,35 @@ def ifStrMatchesAmong(argStr: str, argStrList: list) -> int:
         if(areSameStrings(argStr, string)):
             return 1
         
+    return 0
+
+@error.callStackRoutine
+def appendIfNotIn(argElem, argList):
+
+    value = ifStrMatchesAmongInteractive(argElem, argList)
+
+    if(0 == value):
+        argList.append(argElem)
+        return argElem
     else:
-        return 0
+        return value
+    
+@error.callStackRoutine
+def ifStrMatchesAmongInteractive(argStr: str, argStrList: list) -> int:
+
+    for string in argStrList:
+        if(areSameStrings(argStr, string)):
+            return userSelectsString(argStr, string)
+        
+    return 0
 
 @error.callStackRoutine
 def isEmptyData(argData) -> int:
 
     if(None == argData):
-        return 0
+        return 1
     elif(type(argData) == str):
-        return int('.' == argData)
+        return int('.' == argData) or '' == argData
     else:
         return int(math.isnan(argData))
     
@@ -254,17 +603,17 @@ def getRankBasedOn(argScoreList: list) -> list:
     prevScore = -99999
 
     score = 0 
-    rank = 0
+    rank = len(argScoreList)
 
     for index in range(len(argScoreListSorted)):
 
         score = argScoreListSorted[index]
 
-        if(prevScore < score):
-            rank += 1
-        
         scoreToRankMap[score] = rank
 
+        if(prevScore <= score):
+            rank -= 1
+        
         prevScore = score
 
 
@@ -274,30 +623,73 @@ def getRankBasedOn(argScoreList: list) -> list:
     return rankList 
 
 @error.callStackRoutine
-def calGiniCoeff(list):
+def calGiniCoeff(argList, argSubject: str, argField: str):
 
-    if(0 == len(list)):
+    if(0 == len(argList)):
         return None
     
-    list.sort()
+    argList.sort()
 
-    totalNum = len(list)
-    totalSum = sum(list)
+    totalNum = len(argList)
+    totalSum = sum(argList)
     percentage_delta = np.float32((1 / (totalNum-1) * 100))
-    height_1 = np.float32(list[0]/totalSum*100)
-    height_2 = np.float32(list[0]+list[1]/totalSum*100)
+    height_1 = np.float32(argList[0]/totalSum*100)
+    height_2 = np.float32(argList[0]+argList[1]/totalSum*100)
 
     area_AnB = (100 * 100)/2
     area_B = 0
 
+    #for plotting
+    xCoList = []
+    yCoList = []
+    baseList = []
+
     for i in range(totalNum-1):
         area_B += np.float32(percentage_delta * (height_1 + height_2)/2)
 
+        xCoList.append(percentage_delta * i)
+        yCoList.append(height_1)
+        baseList.append(percentage_delta * i)
+
         if(totalNum-2 != i):
             height_1 = height_2
-            height_2 += np.float32(list[i+2]/totalSum*100)
+            height_2 += np.float32(argList[i+2]/totalSum*100)
 
-    return np.float32((area_AnB - area_B)/area_AnB)
+    giniCoeff = np.float32((area_AnB - area_B)/area_AnB)
+    
+    xCoList.append(np.float32(100))
+    yCoList.append(np.float32(100))
+    baseList.append(np.float32(100))
+
+    font = {'family': 'serif',\
+        'size': 9}
+
+    plt.rc('font', **font)
+
+    titleStr = "Lorentz Curve on " + argSubject + " (Field: " + argField + ")"
+    ylabelStr = "Cumulative Number of " + argSubject + " (Unit: Percentage)"
+
+    plt.title(titleStr)
+    plt.xlabel("Cumulative Number of Institutions (Unit: Percentage)")
+    plt.ylabel(ylabelStr)
+
+    plt.xlim(np.float32(0), np.float32(100))
+    plt.ylim(np.float32(0), np.float32(100))
+
+    plt.plot(xCoList, yCoList, color = 'black')
+    plt.plot(baseList, baseList, linestyle = ":", color = 'green')
+
+    plt.fill_between(xCoList, yCoList, baseList, alpha = 0.5, color = 'blue')
+
+    plt.text(60, 40, str(giniCoeff), color='black', fontsize=11)
+
+    figPath = getPlotPath("FacultyProduction", "LorentzCurve", argField)
+    plt.savefig(figPath)
+    plt.clf()
+
+    
+
+    return giniCoeff
         
 @error.callStackRoutine
 def readFileFor(argFilePath: str, argFileExtensionReq: list):   
@@ -316,9 +708,14 @@ def readFileFor(argFilePath: str, argFileExtensionReq: list):
     
     match fileExt:
         case FileExt.CSV:
-            return pd.read_csv(argFilePath)
+            return pd.read_csv(argFilePath, sep ='\t')
         case FileExt.XLSX:
-            return pd.read_excel(argFilePath)
+            dfDict = pd.read_excel(argFilePath, sheet_name=None)
+
+            if(1 == len(dfDict)):   #if the file contains a single sheet
+                return list(dfDict.values())[0]   #returns a dataframe
+            else:                   #else
+                return pd.read_excel(argFilePath, sheet_name=None)  #returns a dictionary of dataframes
         case _:
             error.LOGGER.report("File Extension Not Supported", error.LogType.WARNING)
             return pd.DataFrame()
@@ -340,6 +737,23 @@ def getValuesListFromDict(argDict: dict) -> list:
 @error.callStackRoutine
 def getKeyListFromDict(argDict: dict) -> list:
     return list(argDict.keys())
+
+@error.callStackRoutine
+def parseKwArgs(argKwArgs: dict, argKeyWordList: list) -> dict:
+
+    returnDict = {}
+
+    for keyword in getKeyListFromDict(argKwArgs):
+        if(keyword not in argKeyWordList):
+            error.LOGGER.report("Invalid arguments will be ignored", error.LogType.WARNING)
+
+    for keyword in argKeyWordList:
+        if(keyword in argKwArgs):
+            returnDict[keyword] = argKwArgs[keyword]
+        else:
+            returnDict[keyword] = 'auto'
+
+    return returnDict
 
 if(__name__ == '__main__'):
 

@@ -23,14 +23,20 @@ class Analyzer:
     #instDict = {}
 
     @error.callStackRoutine
-    def __init__(self):
-
+    def __init__(self, argRankTypeList):
+        
         self.__cleanerDict = {}
         self.instIdDict = {}
         self.instDict = {}
 
         self.__cleanedFlag = 0
 
+        self.__rankTypeList = argRankTypeList
+
+    @error.callStackRoutine
+    def getRankTypeList(self):
+        return self.__rankTypeList
+    
     @error.callStackRoutine
     def __raiseCleanedFlag(self):
         self.__cleanedFlag = 1
@@ -65,16 +71,65 @@ class Analyzer:
         return self.instDict[argInstId]
     
     @error.callStackRoutine
+    def getExistingInstitutionByName(self, argInstName) -> institution.Institution:
+
+        for inst in util.getValuesListFromDict(self.instDict):
+
+            if(util.areSameStrings(argInstName, inst.name)):
+                return inst
+            
+        return None
+    
+    @error.callStackRoutine
     def getInstDict(self):
         return self.instDict
     
+    @error.callStackRoutine
+    def getInstMVRRankPhysics(self, argInst):
+        return argInst.getRankAt('Physics', institution.RankType.SPRANK)
     
     @error.callStackRoutine
-    def printAllInstitutions(self):
+    def getInstMVRRankCS(self, argInst):
+        return argInst.getRankAt('Computer Science', institution.RankType.SPRANK)
+    
+    
+    @error.callStackRoutine
+    def printAllInstitutions(self, **argOptions):
 
-        for item in sorted(self.instDict.items()):
-            print(type(item[1]))
-            item[1].printInfo()
+        optionList = ['based', 'field', 'granularity']
+
+        optionDict = util.parseKwArgs(argOptions, optionList)
+
+        instList = []
+
+        for item in self.instDict.items():
+            instList.append(item[1])
+        
+        if('auto' == optionDict['based']):
+            itemDict = instList
+        elif('mvr_rank' == optionDict['based']):
+            if('physics' == optionDict['field']):
+                itemDict = sorted(instList, key = self.getInstMVRRankPhysics)
+            elif('computer science' == optionDict['field']):
+                itemDict = sorted(instList, key = self.getInstMVRRankCS)
+            elif('auto' == optionDict['field']):
+                itemDict = sorted(instList, key = self.getInstMVRRankCS)
+            else:
+                error.LOGGER.report("Invalid field.", error.LogType.ERROR)
+                return 0
+            
+        if('auto' == optionDict['granularity']):
+            for item in itemDict:
+                item.printInfo("all")
+        elif('inst' == optionDict["granularity"]):
+            for item in itemDict:
+                item.printInfo("inst")
+        elif('field' == optionDict["granularity"]):
+            for item in itemDict:
+                item.printInfo("field")
+        elif('alumni' == optionDict["granularity"]):
+            for item in itemDict:
+                item.printInfo("all")
     
     @error.callStackRoutine
     def __queryCleanerDict(self, argField):
@@ -145,21 +200,23 @@ class Analyzer:
     @error.callStackRoutine
     def __cleanDataForFile(self, argFilePath):
 
-        targetDf = util.readFileFor(argFilePath, [util.FileExt.XLSX, util.FileExt.CSV])
-        rowIterator = util.rowIterator(targetDf.columns,'Degree')
-
+        targetDfDict = util.readFileFor(argFilePath, [util.FileExt.XLSX, util.FileExt.CSV])
         targetRow = None
         field = None
 
-        for numRow in range(len(targetDf.index)):
+        for targetInst in util.getKeyListFromDict(targetDfDict):
+            targetDf = targetDfDict[targetInst]
+            rowIterator = util.rowIterator(targetDf.columns,'Degree')
 
-            targetRow = targetDf.iloc[numRow]
-            field = targetRow[rowIterator.findFirstIndex('Department', 'APPROX')]
+            for numRow in range(len(targetDf.index)):
 
-            cleaner = self.getCleanerFor(field)
+                targetRow = targetDf.iloc[numRow]
+                field = util.gatherSimilarFields(targetRow[rowIterator.findFirstIndex('Department', 'APPROX')])
 
-            if(None != cleaner):
-                cleaner.cleanRow(targetRow, rowIterator)
+                cleaner = self.getCleanerFor(field)
+
+                if(None != cleaner):
+                    cleaner.cleanRow(targetRow, rowIterator)
 
         error.LOGGER.report(" ".join([argFilePath, "is Cleaned"]), error.LogType.INFO)
 
@@ -246,7 +303,7 @@ class Analyzer:
         return giniCoeffDict
     
     @error.callStackRoutine
-    def calcMVRRAnkFor(self, argField):
+    def calcRanksFor(self, argField):
         if(type(argField) != str):
             error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
             return 0
@@ -259,12 +316,12 @@ class Analyzer:
             error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
         
-        error.LOGGER.report(' '.join(["Calculating MVR Rank for", argField]), error.LogType.INFO)
+        error.LOGGER.report(' '.join(["Calculating Ranks for", argField]), error.LogType.INFO)
 
-        return self.__cleanerDict[argField].calcMVRRank()
+        return self.__cleanerDict[argField].calcRank()
     
     @error.callStackRoutine
-    def calcMVRRAnkForAll(self):
+    def calcRanksForAll(self):
 
         if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
@@ -272,14 +329,50 @@ class Analyzer:
         
         error.LOGGER.report("Calculating MVR Ranks for All Fields", error.LogType.INFO)
 
-        returnValue = 1
+        returnDict = {}
 
         for field in util.getKeyListFromDict(self.__cleanerDict):
-            returnValue = returnValue and self.calcMVRRAnkFor(field)
+            returnDict[field] = self.calcRanksFor(field)
 
         error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
 
+        return returnDict
+    
+    @error.callStackRoutine
+    def calcMVRRankMoveFor(self, argField):
+
+        if(type(argField) != str):
+            error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
+            return 0
+
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+        
+        if(0 == self.__queryCleanerDict(argField)):
+            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
+            return 0
+        
+        return self.getCleanerFor(argField).calcMVRMoveForAllAlumni()
+    
+    @error.callStackRoutine
+    def calcMVRRankMoveForAll(self):
+
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+        
+        error.LOGGER.report("Calculating MVR Rank Movements for All Fields", error.LogType.INFO)
+
+        returnValue = 1
+
+        for field in util.getKeyListFromDict(self.__cleanerDict):
+            returnValue = returnValue and self.calcMVRRankMoveFor(field)
+
+        error.LOGGER.report("Sucesssfully Calculated MVR Rank Movements for All Fields!", error.LogType.INFO)
+
         return returnValue
+
     
     @error.callStackRoutine
     def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
@@ -323,7 +416,43 @@ class Analyzer:
 
         returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveForRange(argPercentLow, argPercentHigh)
 
-        return returnDict     
+        return returnDict
+
+    @error.callStackRoutine
+    def plotRankMoveForGender(self, argGender: util.Gender, **argOptions):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotRankMoveForGender(argGender, **argOptions)
+
+    @error.callStackRoutine
+    def plotRankMoveCompareForGender(self, **argOptions):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotRankMoveCompareForGender(**argOptions)
+
+    @error.callStackRoutine
+    def plotRankMove(self, argLowerBound, argUpperBound):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotRankMove(argLowerBound, argUpperBound)
+
+    @error.callStackRoutine
+    def plotGenderRatio(self):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotGenderRatio()
+
+    @error.callStackRoutine
+    def plotNonKRFac(self):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotNonKRFac()
+
+    @error.callStackRoutine
+    def plotNonKRFacRatio(self):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotNonKRFacRatio()
 
 if(__name__ == '__main__'):
 

@@ -20,7 +20,7 @@ def callStackRoutine(argFunction):
 
         returnValue = argFunction(*args, **kwargs)
         
-        LOGGER.popCallStack()
+        LOGGER.popCallStack(returnValue)
         return returnValue
     return wrapper
 
@@ -70,12 +70,12 @@ class LOGGER_C():
         logging.debug("%s Function Called - %s", stackReprString, currentFuncName)
 
 
-    def popCallStack(self):
+    def popCallStack(self, argReturnValue):
         
         currentFuncName = self.callStack.pop()
         stackReprString = "--" * self.callStack.getHeight()
 
-        logging.debug("%s Function Returns - %s", stackReprString, currentFuncName)
+        logging.debug("%s Function Returns %s - %s", stackReprString, argReturnValue, currentFuncName)
 
     def __reportDEBUG(self, argMessage):
         currentFunc = sys._getframe().f_back.f_back.f_code.co_name
@@ -111,8 +111,10 @@ class LOGGER_C():
             case LogType.WARNING:
                 return self.__reportWARNING(argMessage)
             case LogType.ERROR:
+                print(f"LOGGER - {argMessage}")
                 return self.__reportERROR(argMessage)
             case LogType.CRITICAL:
+                print(f"LOGGER - {argMessage}")
                 return self.__reportCRITICAL(argMessage)
             case _:
                 currentFunc = sys._getframe().f_code.co_name
@@ -147,7 +149,7 @@ class Stack:
     
     def peek(self):
     	return self.items[-1]
-
+        
     def isEmpty(self):
         return not self.items
 
