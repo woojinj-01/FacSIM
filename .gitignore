@@ -1,9 +1,17 @@
 dataset/instList.xlsx
 dataset/dirty/*
 dataset/cleaned/*
+dataset/jrank/*
 log/*
+result/*
 src/__pycache__
 !dataset/dirty/.gitkeep
 !dataset/cleaned/.gitkeep
+!dataset/jrank/.gitkeep
 !log/.gitkeep
+!result/.gitkeep
 results.txt
+plot/*
+!plot/.gitkeep
+ini/*
+!ini/.gitkeep
