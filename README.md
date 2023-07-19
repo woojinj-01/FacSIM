@@ -5,7 +5,7 @@ Source codes developed while working as an external researcher in PKNU.
 ### src
 Contains source codes.
 ### dataset
-Contains instList.xlsx (User should manually make this file to initialize instList.), dataset/dirty, and dataset/cleaned.
+Contains ```instList.xlsx``` (User should manually make this file to initialize instList.), dataset/dirty, and dataset/cleaned.
 #### dataset/dirty
 Contains dirty datasets, which are not cleaned yet.
 #### dataset/cleaned
@@ -15,8 +15,8 @@ Contains joongang-ilbo rank datasets, which are crawled from https://namu.wiki/w
 ### log
 Contains output of ```error.LOGGER```. ```error.LOGGER``` generates log files, seperated in terms of the date.
 ### result
-Stdout stream redirected by '''-f''' option is saved here.
+Stdout stream redirected by ```-f``` option is saved here.
 ### ini
-Contains globalTypoHistory.ini (automatically generated).
+Contains ```globalTypoHistory.ini``` (automatically generated).
 ### plot
 Contains figures generated through ploting methods.
