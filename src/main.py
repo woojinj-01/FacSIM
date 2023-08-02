@@ -10,7 +10,7 @@ import argparse
 import util
 import sys
 import status
-import institution
+import career
 
 StatusTracker = status.StatusTracker()
 
@@ -31,9 +31,8 @@ def parseOptions():
                             Strongly recommended to be abled when precise results are required. Note that non-interactive typo corrections \
                                 will be still applied even if the mode is turned off.')
     
-    parser.add_argument('-j', '--joongang', action = 'store_true', \
-                        help= 'Takes Joongang-ilbo University Rank into consideration. \
-                            With this option, All analysis will target both SpringRank and Joongang-ilbo Rank.')
+    parser.add_argument('-k', '--korea', action = 'store_true', \
+                        help= 'Consider only South Korea Academia.')
 
     args = parser.parse_args()
 
@@ -69,13 +68,15 @@ def init():
         resultFilePath = util.getResultFilePath(util.FileExt.TXT)
         sys.stdout = open(resultFilePath, 'w')
 
+    return args
+
 if(__name__ == '__main__'):
 
-    init()
+    args = init()
 
-    targetRankList= [institution.RankType.SPRANK, institution.RankType.JRANK]
+    targetRankList= [util.RankType.SPRANK, util.RankType.JRANK]
 
-    analyzer = analyzer.Analyzer(targetRankList)
+    analyzer = analyzer.Analyzer(targetRankList, args.korea)
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")
 
     analyzer.cleanData()
@@ -83,9 +84,8 @@ if(__name__ == '__main__'):
 
     analyzer.calcRanksForAll()
 
-    #analyzer.calcMVRRankMoveForAll()
-
     #analyzer.calcGiniCoeffForAll()
+    analyzer.calcGiniCoeffBSForAll()
     
     #analyzer.plotRankMove(0, 20)
     #analyzer.plotRankMove(20, 40)
@@ -97,12 +97,13 @@ if(__name__ == '__main__'):
 
     #analyzer.plotGenderRatio()
 
-    analyzer.plotNonKRFac()
-    analyzer.plotNonKRFacRatio()
+    #analyzer.plotNonKRFac(career.DegreeType.MS)
+    #analyzer.plotNonKRFac(career.DegreeType.BS)
+    #analyzer.plotNonKRFacRatio()
 
-    #analyzer.printAllInstitutions(granularity = "field")
+    #analyzer.printAllInstitutions(granularity = "alumni")
 
-    status.STATTRACKER.print()
+    #status.STATTRACKER.print()
 
     util.TYPOHISTORY.flush()    #mandatory
     

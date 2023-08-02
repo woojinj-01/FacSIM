@@ -37,8 +37,34 @@ fieldClassificationDict = {'Physics': ['Physics', 'Applied Physics', 'Electrical
                                         'Information Convergence', 'Mobile Systems Engineering', 'Multimedia Engineering', \
                                         'Software and Computer Engineering', 'Software Science', 'Software']}
 
+class RankType(Enum):
+
+    SPRANK = auto()
+    JRANK = auto()
+
+    @error.callStackRoutine
+    def toStr(self, argRepType):
+        if("camelcase" == argRepType):
+            match self:
+                case RankType.SPRANK:
+                    return "SpringRank"
+                case RankType.JRANK:
+                    return "Joongang-ilbo Rank"
+                case _:
+                    pass
+
+        elif("abbrev" == argRepType):
+            return self.name.lower()
+        
+        else:
+            error.LOGGER.report("Wrong argRepType.", error.LogType.ERROR)
+            
 class HistType(Enum):
     LOCAL = auto()
+    GLOBAL = auto()
+
+class Mode(Enum):
+
     GLOBAL = auto()
 
 class TypoHistory:
@@ -661,10 +687,10 @@ def calGiniCoeff(argList, argSubject: str, argField: str):
     yCoList.append(np.float32(100))
     baseList.append(np.float32(100))
 
-    font = {'family': 'serif',\
-        'size': 9}
+    font = {'family': 'Helvetica', 'size': 9}
 
     plt.rc('font', **font)
+    plt.figure(figsize=(7,5), dpi=200)
 
     titleStr = "Lorentz Curve on " + argSubject + " (Field: " + argField + ")"
     ylabelStr = "Cumulative Number of " + argSubject + " (Unit: Percentage)"
@@ -676,12 +702,12 @@ def calGiniCoeff(argList, argSubject: str, argField: str):
     plt.xlim(np.float32(0), np.float32(100))
     plt.ylim(np.float32(0), np.float32(100))
 
-    plt.plot(xCoList, yCoList, color = 'black')
-    plt.plot(baseList, baseList, linestyle = ":", color = 'green')
+    plt.plot(xCoList, yCoList, 'bo-', markersize = 2)
+    plt.plot(baseList, baseList, color = 'black', linewidth = 0.5)
 
-    plt.fill_between(xCoList, yCoList, baseList, alpha = 0.5, color = 'blue')
+    plt.fill_between(xCoList, yCoList, baseList, alpha = 0.2, color = 'grey')
 
-    plt.text(60, 40, str(giniCoeff), color='black', fontsize=11)
+    plt.text(60, 40, str(giniCoeff), color='black', fontsize=7)
 
     figPath = getPlotPath("FacultyProduction", "LorentzCurve", argField)
     plt.savefig(figPath)

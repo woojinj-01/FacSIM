@@ -13,6 +13,7 @@ import SpringRank as sp
 import math
 import status
 import os
+import career
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -24,7 +25,6 @@ class CleanerFlag():
     @error.callStackRoutine
     def __init__(self):
         self.MVRRankCalculated = False
-        self.MVRRankMoveCalculated = False
         self.giniCoeffCalculated = False
 
     @error.callStackRoutine
@@ -34,14 +34,6 @@ class CleanerFlag():
     @error.callStackRoutine
     def ifMVRRankCalculated(self):
         return self.MVRRankCalculated
-    
-    @error.callStackRoutine
-    def raiseMVRRankMoveCalculated(self):
-        self.MVRRankMoveCalculated = True
-
-    @error.callStackRoutine
-    def ifMVRRankMoveCalculated(self):
-        return self.MVRRankMoveCalculated
     
     @error.callStackRoutine
     def raiseGiniCoeffCalculated(self):
@@ -69,7 +61,7 @@ class Cleaner():
     Constructor of class Cleaner. You can set columns of output files by modifying the constructor.
     """
     @error.callStackRoutine
-    def __init__(self, argAnalyzer, argField):
+    def __init__(self, argAnalyzer, argField, argKorea):
 
         self.analyzer= argAnalyzer
 
@@ -79,15 +71,29 @@ class Cleaner():
         # Dataframe of output vertex list
         self.__vertexList = pd.DataFrame(columns = ['# u', 'Institution', 'Region', 'Country'])
 
-        # Dataframe of output edge list
-        self.__edgeList = pd.DataFrame(columns = ['# u', '# v', 'gender'])
+        self.__edgeListDict = {}
+
+        for srcDegType in career.DegreeType:
+
+            dstDegType = srcDegType.next()
+
+            if(None != dstDegType):
+                self.__edgeListDict[(srcDegType, dstDegType)] = pd.DataFrame(columns = ['# u', '# v', 'gender'])
+
+        self.__edgeListDict[(career.DegreeType.PHD, career.DegreeType.AP)] = pd.DataFrame(columns = ['# u', '# v', 'gender'])
 
         # Dictonary holding institution ids, which are matched to institutions one by one.
         self.__localInstIdList = []
 
+        self.korea = argKorea
+
         # Flags.
         self.flags = CleanerFlag()
 
+    @error.callStackRoutine
+    def ifKoreaOnly(self):
+        return self.korea
+    
     @error.callStackRoutine
     def getTotalNumInstInField(self):
         return len(self.__localInstIdList)
@@ -100,45 +106,40 @@ class Cleaner():
         else:
             self.__localInstIdList.append(argInstId)
             return 1
-
+        
     @error.callStackRoutine
-    def cleanRow(self, argTargetRow, argRowIterator):
-        error.LOGGER.report("Cleaning a Row..", error.LogType.INFO)
+    def __cleanStep(self, argTargetRow, argRowIterator: util.rowIterator, argDegType: career.DegreeType):
 
+        hit = 0
+        step = None
         newVertexRowCreated = 0
-        newVertexRowsCreated = 0
-        vertexRowList = []
-        edgeRow = []
+        vertexRow = []
 
-        phDInstId = 0
-        apInstId = 0
+        offset = 2
 
-        phDInstFound = 0
-        apInstFound = 0
+        key = argDegType.toStr("search")
 
-        phDInst: institution.Institution = None
-        apInst: institution.Institution = None
+        koreaOnly = self.ifKoreaOnly()
 
-
-        # find Ph.D institution
+        if(argDegType in [career.DegreeType.PDOC, career.DegreeType.AP]):
+            argRowIterator.changeTargetAndReset('Job')
+            offset = 1
 
         for index in argRowIterator:
 
-            if(util.areSameStrings(argTargetRow[index], 'PhD')):   
+            if(util.areSameStrings(argTargetRow[index], key)):   
 
                 instInfo = institution.InstInfo()
 
-                if(not instInfo.addRegionToInstInfo(argTargetRow[index+2])): #better version
+                if(not instInfo.addRegionToInstInfo(argTargetRow[index+offset])): #better version
                     continue
 
-                if(instInfo.isInvalid()):
+                if(instInfo.isInvalid(koreaOnly)):
                     continue
                 
                 instInfo.name = util.appendIfNotIn(instInfo.name, status.STATTRACKER.statInstNameList)
                 instInfo.country = util.appendIfNotIn(instInfo.country, status.STATTRACKER.statCountryList)
                 instInfo.region = util.appendIfNotIn(instInfo.region, status.STATTRACKER.statRegionList)
-
-                vertexRow = []
 
                 phDInstId = self.analyzer.getInstIdFor(instInfo)
                 instInfo.addInstIdToInstInfo(phDInstId)
@@ -146,93 +147,103 @@ class Cleaner():
                 newVertexRowCreated = self.__addToLocalInstIdList(phDInstId)
 
                 phDInst = self.analyzer.getInstitution(instInfo, self.field)
-                    
-                newVertexRowsCreated = newVertexRowsCreated or newVertexRowCreated
 
-                if(1 == newVertexRowCreated):
-
-                    phDInst.flushInfoToList(vertexRow)
-                    vertexRowList.append(vertexRow)
-
-                phDInstFound = 1
-
-                break
-
-                
-        # find Assistant Prof institution
-
-        argRowIterator.changeTargetAndReset('Job')
-
-        for index in argRowIterator:
-            if(util.areSameStrings(argTargetRow[index], 'Assistant Professor')):
-
-                instInfo = institution.InstInfo()
-
-                if(not instInfo.addRegionToInstInfo(argTargetRow[index+1])):
-                    continue
-
-                if(instInfo.isInvalid()):
-                    continue
-
-                instInfo.name = util.appendIfNotIn(instInfo.name, status.STATTRACKER.statInstNameList)
-                instInfo.country = util.appendIfNotIn(instInfo.country, status.STATTRACKER.statCountryList)
-                instInfo.region = util.appendIfNotIn(instInfo.region, status.STATTRACKER.statRegionList)
-
-                vertexRow = []
-                
-                apInstId = self.analyzer.getInstIdFor(instInfo)
-                instInfo.addInstIdToInstInfo(apInstId)
-
-                newVertexRowCreated = self.__addToLocalInstIdList(apInstId)
-
-                apInst = self.analyzer.getInstitution(instInfo, self.field)
-
-                newVertexRowsCreated = newVertexRowsCreated or newVertexRowCreated
+                step = career.CareerStep(phDInst, argDegType)
 
                 if(newVertexRowCreated):
-                    apInst.flushInfoToList(vertexRow)
-                    vertexRowList.append(vertexRow)
+                    phDInst.flushInfoToList(vertexRow)
+                    
 
-                apInstFound = 1
-                
+                hit = 1
+
                 break
-
-        if(not (phDInstFound and apInstFound)):
-
-            if(phDInstFound):
-                status.STATTRACKER.statNumRowPhDWithNoAP[self.field] += 1
-            elif(apInstFound):
-                status.STATTRACKER.statNumRowAPWithNoPhD[self.field] += 1
-            else:
-                status.STATTRACKER.statNumRowWithNoPhDAndAP[self.field] += 1
-                
-            argRowIterator.changeTargetAndReset('Degree')
-            error.LOGGER.report("This Row does not Contain PhD or AP Info", error.LogType.WARNING)
-
-            status.STATTRACKER.statTotalNumRowCleaned += 1
-            return 0
-    
         
+        argRowIterator.changeTargetAndReset('Degree')
+
+        return (hit, step, newVertexRowCreated, vertexRow) 
+
+    @error.callStackRoutine
+    def cleanRow(self, argTargetRow, argRowIterator):
+        error.LOGGER.report("Cleaning a Row..", error.LogType.INFO)
+
+        newVertexRowCreated = 0
+        vertexRowList = []
+        edgeRow = []
+
+        hitDict = {}
+        careerStepDict = {}
+
+        targetDegList = [career.DegreeType.BS, career.DegreeType.PHD, career.DegreeType.AP] if (self.ifKoreaOnly()) else career.DegreeType
+
+        # Step 1: Inspect the target row and gather informations.
+
+        for degType in targetDegList:
+            #Post-doc case is not complete (will not work maybe..)
+
+            (hit, step, newVertexRowCreated, vertexRow) = \
+                self.__cleanStep(argTargetRow, argRowIterator, degType)
+            
+            hitDict[degType] = hit
+
+            if(hit):
+                careerStepDict[degType] = step
+            
+            if(newVertexRowCreated):
+                vertexRowList.append(vertexRow)
+        
+        # Step 2: Construct the career of the alumnus.
+
         currentRank = argTargetRow[argRowIterator.findFirstIndex("Current Rank", "APPROX")]
         gender = util.genderToStr(util.strToGender(\
             argTargetRow[argRowIterator.findFirstIndex("Sex", "APPROX")]))
-        
-        edgeRow.append(phDInst.instId)
-        edgeRow.append(apInst.instId)
-        edgeRow.append(gender)
 
-        #add alumnus info
-        gender = util.strToGender(gender)
-        alumnusInfo = institution.AlumnusInfo(self.field, currentRank, gender, \
-                                             phDInst.instId, phDInst.name, apInst.instId, apInst.name)
-        phDInst.addAlumnusAt(alumnusInfo)
+        alumnus = career.Alumni(self.field, currentRank, util.strToGender(gender))
+
+        for step in util.getValuesListFromDict(careerStepDict):
+            alumnus.append(step)
+
+        # Step 3: Maintain vertex list and edge list.
+
+        for vertexRow in vertexRowList:
+            self.__vertexList.loc[len(self.__vertexList)] = vertexRow
+
+        if(not self.ifKoreaOnly()):
+            for srcDegType in targetDegList:
+
+                dstDegType = srcDegType.next()
+
+                if(None != dstDegType):
+                    if(hitDict[srcDegType] and hitDict[dstDegType]):
+                        
+                        targetEdgeList = self.__edgeListDict[(srcDegType, dstDegType)]
+                        edgeRow = []
+
+                        srcInstId = careerStepDict[srcDegType].inst.instId
+                        dstInstId = careerStepDict[dstDegType].inst.instId
+
+                        edgeRow.append(srcInstId)
+                        edgeRow.append(dstInstId)
+                        edgeRow.append(gender)
+
+                        targetEdgeList.loc[len(targetEdgeList)] = edgeRow
+
+                    else:
+                        continue
 
 
-        if(1 == newVertexRowsCreated):
-            for vertexRow in vertexRowList:
-                self.__vertexList.loc[len(self.__vertexList)] = vertexRow
-            
-        self.__edgeList.loc[len(self.__edgeList)] = edgeRow
+        if(hitDict[career.DegreeType.PHD] and hitDict[career.DegreeType.AP]):
+                    
+            targetEdgeList = self.__edgeListDict[(career.DegreeType.PHD, career.DegreeType.AP)]
+            edgeRow = []
+
+            srcInstId = careerStepDict[career.DegreeType.PHD].inst.instId
+            dstInstId = careerStepDict[career.DegreeType.AP].inst.instId
+
+            edgeRow.append(srcInstId)
+            edgeRow.append(dstInstId)
+            edgeRow.append(gender)
+
+            targetEdgeList.loc[len(targetEdgeList)] = edgeRow
 
         argRowIterator.changeTargetAndReset('Degree')
 
@@ -243,11 +254,55 @@ class Cleaner():
 
     @error.callStackRoutine
     def __sortEdgeList(self):
-        self.__edgeList.sort_values(by=['# u', '# v'], inplace=True)
+
+        for edgeList in util.getValuesListFromDict(self.__edgeListDict):
+            edgeList.sort_values(by=['# u', '# v'], inplace=True)
 
     @error.callStackRoutine
     def __sortVertexList(self):
         self.__vertexList.sort_values(by = ['# u'], inplace = True)
+
+    @error.callStackRoutine
+    def __calcSpRankForStep(self, argDegTuple):
+
+        srcDegType = argDegTuple[0]
+        dstDegType = argDegTuple[1]
+
+        if(srcDegType not in career.DegreeType or srcDegType not in career.DegreeType):
+            error.LOGGER.report("Invalid argDegTyple.", error.LogType.WARNING)
+            return None
+
+        targetEdgeList = self.__edgeListDict[(srcDegType, dstDegType)]
+
+        adjMat = np.zeros((len(self.__localInstIdList), len(self.__localInstIdList)), dtype = int)
+
+        id2IndexMap = {}
+        index2IdMap = {}
+
+        targetRow = None
+
+        localInstIdListSorted = sorted(self.__localInstIdList)
+
+        for i in range(len(localInstIdListSorted)):
+            id2IndexMap[localInstIdListSorted[i]] = i
+            index2IdMap[i] = localInstIdListSorted[i]
+
+        for numRow in range(len(targetEdgeList.index)):
+            targetRow = targetEdgeList.iloc[numRow]
+            adjMat[id2IndexMap[targetRow[0]], id2IndexMap[targetRow[1]]] += 1
+
+        spRankList = sp.get_ranks(adjMat)
+        inverseTemp = sp.get_inverse_temperature(adjMat, spRankList)
+
+        rankList = util.getRankBasedOn(spRankList)
+        rankList = util.getRidOfTie(rankList)
+
+        for index in range(len(rankList)):
+            instId = index2IdMap[index]
+
+            self.analyzer.getExistingInstitution(instId).setRankAt(self.field, rankList[index], util.RankType.SPRANK, argDegTuple)
+
+        return inverseTemp
 
     @error.callStackRoutine
     def calcRank(self):
@@ -255,45 +310,25 @@ class Cleaner():
         returnDict = {}
         
         for rankType in self.analyzer.getRankTypeList():
-            if(institution.RankType.SPRANK == rankType):
+            if(util.RankType.SPRANK == rankType):
 
-                error.LOGGER.report("Calculating SpringRank, which is approximation of MVR Rank", error.LogType.INFO)
+                error.LOGGER.report("Calculating SpringRank, which is an approximation of MVR Rank", error.LogType.INFO)
                 error.LOGGER.report("Copyright (c) 2017 Caterina De Bacco and Daniel B Larremore", error.LogType.INFO)
 
-                adjMat = np.zeros((len(self.__localInstIdList), len(self.__localInstIdList)), dtype = int)
+                returnDict[rankType] = []
 
-                id2IndexMap = {}
-                index2IdMap = {}
+                for srcDegType in career.DegreeType:
 
-                targetRow = None
+                    dstDegType = srcDegType.next()
 
-                localInstIdListSorted = sorted(self.__localInstIdList)
+                    if(None != dstDegType):
+                        returnDict[rankType].append(self.__calcSpRankForStep((srcDegType, dstDegType)))
 
-                for i in range(len(localInstIdListSorted)):
-                    id2IndexMap[localInstIdListSorted[i]] = i
-                    index2IdMap[i] = localInstIdListSorted[i]
-
-                for numRow in range(len(self.__edgeList.index)):
-                    targetRow = self.__edgeList.iloc[numRow]
-                    adjMat[id2IndexMap[targetRow[0]], id2IndexMap[targetRow[1]]] += 1
-
-            
-                spRankList = sp.get_ranks(adjMat)
-                inverseTemp = sp.get_inverse_temperature(adjMat, spRankList)
-
-                rankList = util.getRankBasedOn(spRankList)
-                rankList = util.getRidOfTie(rankList)
-
-                for index in range(len(rankList)):
-                    instId = index2IdMap[index]
-
-                    self.analyzer.getExistingInstitution(instId).setRankAt(self.field, rankList[index], institution.RankType.SPRANK)
+                returnDict[rankType].append(self.__calcSpRankForStep((career.DegreeType.PHD, career.DegreeType.AP)))
 
                 error.LOGGER.report("Sucessfully Calculated SpringRank!", error.LogType.INFO)
-
-                returnDict[rankType] = inverseTemp
             
-            elif(institution.RankType.JRANK == rankType):
+            elif(util.RankType.JRANK == rankType):
 
                 targetDir = '../dataset/jrank'
                 targetFileName = '_'.join(['jrank', self.field]) +  util.fileExtToStr(util.FileExt.CSV)
@@ -331,7 +366,7 @@ class Cleaner():
                     inst = self.analyzer.getExistingInstitutionByName(instName)
 
                     if(None!=inst):
-                        inst.setRankAt(self.field, rank, institution.RankType.JRANK)
+                        inst.setRankAt(self.field, rank, util.RankType.JRANK, None)
 
                 returnDict[rankType] = 1
 
@@ -341,6 +376,8 @@ class Cleaner():
 
     @error.callStackRoutine
     def calcGiniCoeff(self):
+
+        print("GiniCoeff")
         
         error.LOGGER.report("Calculating Gini Coefficient on # of Alumni", error.LogType.INFO)
         error.LOGGER.report("Result of This Method Can be Unreliable", error.LogType.WARNING)
@@ -350,30 +387,54 @@ class Cleaner():
 
         for institution in util.getValuesListFromDict(instDict):
             if(institution.queryField(self.field)):
-                numAlumniList.append(institution.getTotalNumAlumniAt(self.field))
+                numAlumniList.append(institution.getTotalNumAlumniAt(self.field, career.DegreeType.PHD))
 
         returnValue = util.calGiniCoeff(numAlumniList, "Faculty Production", self.field)
+
+        #print(self.field)
+        #print(numAlumniList)
 
         self.flags.raiseGiniCoeffCalculated()
 
         error.LOGGER.report("Successfully Calculated Gini Coefficient on # of Alumni!", error.LogType.INFO)
 
         return returnValue
-
-    """
+    
     @error.callStackRoutine
-    def calcMVRRank(self):
+    def calcGiniCoeffBS(self):
+
+        instDict = self.analyzer.getInstDict()
         
-        error.LOGGER.report("Calculating MVR Rank", error.LogType.INFO)
+        numAlumniDict = {}
 
-        returnValue = self.calcSpringRank()
+        for inst in util.getValuesListFromDict(instDict):
+            department = inst.getFieldIfExists(self.field)
 
-        self.flags.raiseMVRRankCalculated()
+            if(None != department and not inst.isNonKRInst()):
+                numAlumniDict[inst.instId] = 0
 
-        error.LOGGER.report("Sucessfully Calculated MVR Rank!", error.LogType.INFO)
+        for dstInst in util.getValuesListFromDict(instDict):
+            
+            dstDepartment = dstInst.getFieldIfExists(self.field)
+
+            if(None != dstDepartment):
+                for alumnus in dstDepartment.getTotalAlumniListForDeg(career.DegreeType.AP):
+                        
+                        srcInst = alumnus.getInstFor(career.DegreeType.PHD)
+
+                        if(None == srcInst or srcInst.isNonKRInst()):
+                            continue
+                        else:
+                            numAlumniDict[srcInst.instId] += 1
+
+        numAlumniList = util.getValuesListFromDict(numAlumniDict)
+
+        returnValue = util.calGiniCoeff(numAlumniList, "Faculty Production", self.field)
+
+        self.flags.raiseGiniCoeffCalculated()
+
         return returnValue
 
-    """
     
     @error.callStackRoutine
     def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
@@ -382,10 +443,6 @@ class Cleaner():
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
         
-        if(not self.flags.ifMVRRankMoveCalculated()):
-            error.LOGGER.report("Attempt denied. MVR rank movements are not pre-calculated.", error.LogType.ERROR)
-            return 0
-
         if(argGender not in util.Gender):
             error.LOGGER.report("Invalid Gender", error.LogType.WARNING)
             return 0
@@ -398,10 +455,9 @@ class Cleaner():
             department = inst.getFieldIfExists(self.field)
 
             if(None != department):
-                if(argGender in department.alumniDictWithGenderKey):
-                    for alumnus in department.alumniDictWithGenderKey[argGender]:
-
-                        rankMovementList.append(alumnus.getRankMove(institution.RankType.SPRANK))
+                for alumnus in department.getTotalAlumniListForDeg(career.DegreeType.PHD):
+                    if(argGender == alumnus.gender):
+                        rankMovementList.append(alumnus.getRankMove(util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP)))
 
 
         return util.getMean(rankMovementList)
@@ -413,10 +469,6 @@ class Cleaner():
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
         
-        if(not self.flags.ifMVRRankMoveCalculated()):
-            error.LOGGER.report("Attempt denied. MVR rank movements are not pre-calculated.", error.LogType.ERROR)
-            return 0
-
         if(argPercentLow<=0):
             error.LOGGER.report("Invalid percentage range.", error.LogType.WARNING)
         elif(argPercentLow>100):
@@ -452,7 +504,7 @@ class Cleaner():
 
             if(None != department):    #institution has self.field field
                 instList.append(inst)
-                rankList.append(inst.getRankAt(self.field, institution.RankType.SPRANK))
+                rankList.append(inst.getRankAt(self.field, util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP)))
 
         rankLowerBound = math.ceil(float(len(rankList) * argPercentLow / 100))
         rankUpperBound = math.floor(float(len(rankList)* argPercentHigh / 100))
@@ -464,40 +516,12 @@ class Cleaner():
             department = inst.getFieldIfExists(self.field)
 
             if(None != department):    #institution has self.field field
-                for alumni in util.getValuesListFromDict(department.alumniDict):
+                for alumni in department.getTotalAlumniListForDeg(career.DegreeType.PHD):
                     for alumnus in alumni:
 
-                        rankMovementList.append(alumnus.getRankMove(institution.RankType.SPRANK))
+                        rankMovementList.append(alumnus.getRankMove(util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP)))
 
         return util.getMean(rankMovementList)
-    
-    @error.callStackRoutine
-    def calcMVRMoveForAllAlumni(self):
-
-        if(not self.flags.ifMVRRankCalculated()):
-            return 0
-        
-        instDict = self.analyzer.getInstDict()
-        
-        for inst in util.getValuesListFromDict(instDict):
-            department = inst.getFieldIfExists(self.field)
-
-            if(None != department):
-                for alumnus in department.getTotalAlumniList():
-
-                    for rankType in self.analyzer.getRankTypeList():
-                        phDInstRank = instDict[alumnus.phDInstId].getRankAt(self.field, rankType)
-                        apInstRank = instDict[alumnus.apInstId].getRankAt(self.field, rankType)
-
-                        if(None!=phDInstRank and None!=apInstRank):
-                            alumnus.setRankMove(apInstRank - phDInstRank, rankType)
-                        else:
-                            error.LOGGER.report("None-value ranks are ignored.", error.LogType.DEBUG)
-
-        self.flags.raiseMVRRankMoveCalculated()
-
-        return 1
-    
 
     @error.callStackRoutine
     def plotRankMove(self, argPercentLow: int, argPercentHigh: int):
@@ -539,10 +563,16 @@ class Cleaner():
 
             if(None != department):
 
-                for alumnus in department.getTotalAlumniList():
-                    data = alumnus.getRankMove(institution.RankType.SPRANK) / numTotalInst
+                for alumnus in department.getTotalAlumniListForDeg(career.DegreeType.PHD):
 
-                    phDInstRank = instDict[alumnus.phDInstId].getRankAt(self.field, institution.RankType.SPRANK)
+                    rankMove = alumnus.getRankMove(util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP))
+
+                    if(None == rankMove):
+                        continue
+
+                    data = alumnus.getRankMove(util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP)) / numTotalInst
+
+                    phDInstRank = alumnus.getInstFor(career.DegreeType.PHD).getRankAt(self.field, util.RankType.SPRANK, (career.DegreeType.PHD, career.DegreeType.AP))
 
                     if(rankLowerBound <= phDInstRank <= rankUpperBound):
                         if(util.Gender.MALE == alumnus.getGender()):
@@ -623,12 +653,9 @@ class Cleaner():
 
                 numMale = 0
                 numFemale = 0
-                rank = department.MVRRank
+                rank = department.spRank
 
-                for alumnus in department.getTotalAlumniList():
-                    #data = alumnus.getRankMove(institution.RankType.SPRANK) / numTotalInst
-
-                    #phDInstRank = instDict[alumnus.phDInstId].getRankAt(self.field, institution.RankType.SPRANK)
+                for alumnus in department.getTotalAlumniListForDeg(career.DegreeType.PHD):
 
                     if(util.Gender.MALE == alumnus.gender):
                         numMale+=1
@@ -671,7 +698,7 @@ class Cleaner():
         return 1
     
     @error.callStackRoutine
-    def plotNonKRFac(self):
+    def plotNonKRFac(self, argDegType: career.DegreeType):
 
         if(not self.flags.ifMVRRankCalculated()):
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
@@ -690,38 +717,34 @@ class Cleaner():
             xCoDict[rankType] = []
             yCoDict[rankType] = []
 
-        for inst in util.getValuesListFromDict(instDict):
+        for dstInst in util.getValuesListFromDict(instDict):
             
-            department = inst.getFieldIfExists(self.field)
+            dstDepartment = dstInst.getFieldIfExists(self.field)
 
-            for rankType in rankTypeList:
-
-                if(None != department):
-
-                    phDInstRank = inst.getRankAt(self.field, rankType)
-
-                    if(None != phDInstRank and phDInstRank not in nonKRProfDict[rankType]):
-                        nonKRProfDict[rankType][phDInstRank] = 0
+            if(None != dstDepartment):
+                for rankType in rankTypeList:
                     
-                    isNonKRPhD = inst.isNonKRInst()
+                    dstInstRank = dstInst.getRankAt(self.field, rankType, (career.DegreeType.PHD, career.DegreeType.AP))
 
-                    for alumnus in department.getTotalAlumniList():
+                    if(None == dstInstRank):
+                        continue
 
-                        apInstRank = instDict[alumnus.apInstId].getRankAt(self.field, rankType)
+                    if(dstInstRank not in nonKRProfDict[rankType]):
+                        nonKRProfDict[rankType][dstInstRank] = 0
 
-                        if(None == apInstRank):
+                    for alumnus in dstDepartment.getTotalAlumniListForDeg(career.DegreeType.AP):
+                        
+                        srcInst = alumnus.getInstFor(argDegType)
+
+                        if(None == srcInst):
                             continue
+                        
+                        isNonKR = srcInst.isNonKRInst()
 
-                        if(apInstRank in nonKRProfDict[rankType]):
-                            nonKRProfDict[rankType][apInstRank] += isNonKRPhD
-                        else:
-                            nonKRProfDict[rankType][apInstRank] = isNonKRPhD
-
-
-
+                        nonKRProfDict[rankType][dstInstRank] += isNonKR
 
         font = {'family': 'serif', 'size': 9}
-        titleStr = "Number of Faculty with Non-KR PhD " + "(Field: " + self.field + ")"
+        titleStr = "Number of Faculty with Non-KR "+ argDegType.toStr("label") + " (Field: " + self.field + ")"
 
         for rankType in rankTypeList:
 
@@ -734,13 +757,114 @@ class Cleaner():
 
             plt.title(titleStr)
             plt.xlabel(rankType.toStr("camelcase"))
-            plt.ylabel("Number of Faculty with Non-KR PhD")
+            plt.ylabel(f"Number of Faculty with Non-KR {argDegType.toStr('label')}")
 
             plt.plot(xCoDict[rankType], yCoDict[rankType], color='blue')
 
             plt.legend()
 
-            figPath = util.getPlotPath("NumNonKRFac", "Plot", self.field, rankType.toStr("abbrev"))
+            figPath = util.getPlotPath(f"NumNonKRFac_{argDegType.toStr('label')}", "Plot", self.field, rankType.toStr("abbrev"))
+
+            plt.savefig(figPath)
+            plt.clf()
+
+        return 1
+    
+    @error.callStackRoutine
+    def plotNonKRFac2(self, argDegType: career.DegreeType):
+
+        if(not self.flags.ifMVRRankCalculated()):
+            error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
+
+            return 0
+
+        instDict = self.analyzer.getInstDict()
+        rankTypeList = self.analyzer.getRankTypeList()
+
+        print(rankTypeList)
+
+        nonKRProfDict = {}
+        krProfDict = {}
+        xCoDict = {}
+        yCoDict = {}
+        yCoDict2 = {}
+
+        for rankType in rankTypeList:
+            nonKRProfDict[rankType] = {}
+            krProfDict[rankType] = {}
+            xCoDict[rankType] = []
+            yCoDict[rankType] = []
+            yCoDict2[rankType] = []
+
+        for dstInst in util.getValuesListFromDict(instDict):
+            
+            dstDepartment = dstInst.getFieldIfExists(self.field)
+
+            if(None != dstDepartment):
+                for rankType in rankTypeList:
+                    
+                    dstInstRank = dstInst.getRankAt(self.field, rankType, (career.DegreeType.PHD, career.DegreeType.AP))
+
+                    if(None == dstInstRank):
+                        continue
+                    elif(not dstInst.isNonKRInst()):
+                        continue
+                    
+                    #print(rankType, ": nonKR :" , nonKRProfDict[rankType])
+                    if(dstInstRank not in nonKRProfDict[rankType]):
+                        #print(f"{dstInstRank} is not in")
+                        nonKRProfDict[rankType][dstInstRank] = 0
+
+                    #print(rankType, ": KR : " ,  krProfDict[rankType])
+                    if(dstInstRank not in krProfDict[rankType]):
+                        #print(f"{dstInstRank} is not in")
+                        krProfDict[rankType][dstInstRank] = 0
+
+                    for alumnus in dstDepartment.getTotalAlumniListForDeg(career.DegreeType.AP):
+                        
+                        srcInst = alumnus.getInstFor(argDegType)
+
+                        if(None == srcInst):
+                            continue
+                        
+                        isNonKR = srcInst.isNonKRInst()
+                        
+                        if(1 == isNonKR):
+                            nonKRProfDict[rankType][dstInstRank] += 1
+                        elif(0 == isNonKR):
+                            krProfDict[rankType][dstInstRank] += 1
+
+                        print(isNonKR, srcInst.getRankAt(self.field, rankType, (career.DegreeType.PHD, career.DegreeType.AP)),\
+                              dstInstRank)
+
+                        #print(nonKRProfDict)
+                        #print(krProfDict)
+
+        font = {'family': 'serif', 'size': 9}
+        titleStr = "Number of Faculty with Non-KR "+ argDegType.toStr("label") + " (Field: " + self.field + ")"
+
+        print(nonKRProfDict[util.RankType.SPRANK])
+        print(krProfDict[util.RankType.SPRANK])
+        for rankType in rankTypeList:
+
+            for rank in sorted(util.getKeyListFromDict(nonKRProfDict[rankType])):
+
+                xCoDict[rankType].append(rank)
+                yCoDict[rankType].append(nonKRProfDict[rankType][rank])
+                yCoDict2[rankType].append(krProfDict[rankType][rank])
+            
+            plt.rc('font', **font)
+
+            plt.title(titleStr)
+            plt.xlabel(rankType.toStr("camelcase"))
+            plt.ylabel(f"Number of Faculty with Non-KR {argDegType.toStr('label')}")
+
+            plt.plot(xCoDict[rankType], yCoDict[rankType], color='blue')
+            plt.plot(xCoDict[rankType], yCoDict2[rankType], color='green')
+
+            plt.legend()
+
+            figPath = util.getPlotPath(f"NumNonKRFac_{argDegType.toStr('label')}", "Plot", self.field, rankType.toStr("abbrev"))
 
             plt.savefig(figPath)
             plt.clf()
@@ -777,7 +901,7 @@ class Cleaner():
 
                 if(None != department):
 
-                    phDInstRank = inst.getRankAt(self.field, rankType)
+                    phDInstRank = inst.getRankAt(self.field, rankType, (career.DegreeType.PHD, career.DegreeType.AP))
 
                     if(None != phDInstRank and phDInstRank not in nonKRProfDict[rankType]):
                         nonKRProfDict[rankType][phDInstRank] = 0
@@ -787,9 +911,9 @@ class Cleaner():
                     
                     isNonKRPhD = inst.isNonKRInst()
 
-                    for alumnus in department.getTotalAlumniList():
+                    for alumnus in department.getTotalAlumniListForDeg(career.DegreeType.PHD):
 
-                        apInstRank = instDict[alumnus.apInstId].getRankAt(self.field, rankType)
+                        apInstRank = alumnus.getInstFor(career.DegreeType.AP).getRankAt(self.field, rankType, (career.DegreeType.PHD, career.DegreeType.AP))
 
                         if(None == apInstRank):
                             continue
@@ -844,18 +968,17 @@ class Cleaner():
         self.__sortVertexList()
         self.__sortEdgeList()
 
-        #vertexFilename = ''.join(['_'.join(['vertex', self.field, currentDateStr]), '.xlsx'])
-        #edgeFilename = ''.join(['_'.join(['edge', self.field, currentDateStr]), '.xlsx'])
-
-        #vertexFilePath = os.path.join('../dataset/cleaned/', vertexFilename)
-        #edgeFilePath = os.path.join('../dataset/cleaned/', edgeFilename)
-
         vertexFilePath = util.getCleanedFilePath("Vertex", self.field, util.FileExt.XLSX)
-        edgeFilePath = util.getCleanedFilePath("Edge", self.field, util.FileExt.XLSX)
-        
-
         self.__vertexList.to_excel(vertexFilePath, index = False, engine = 'openpyxl')
-        self.__edgeList.to_excel(edgeFilePath, index= False, engine = 'openpyxl')
+
+        for srcDstPair in util.getKeyListFromDict(self.__edgeListDict):
+
+            srcLabel = srcDstPair[0].toStr("label")
+            dstLabel = srcDstPair[1].toStr("label")
+
+            edgeFilePath = util.getCleanedFilePath("Edge", self.field, util.FileExt.XLSX, srcLabel, dstLabel)
+
+            self.__edgeListDict[srcDstPair].to_excel(edgeFilePath, index= False, engine = 'openpyxl')
     
 
     @error.callStackRoutine
@@ -864,17 +987,17 @@ class Cleaner():
         self.__sortVertexList()
         self.__sortEdgeList()
 
-        #vertexFilename = ''.join(['_'.join(['vertex', self.field, currentDateStr]), '.csv'])
-        #edgeFilename = ''.join(['_'.join(['edge', self.field, currentDateStr]), '.csv'])
-
-        #vertexFilePath = os.path.join('../dataset/cleaned/', vertexFilename)
-        #edgeFilePath = os.path.join('../dataset/cleaned/', edgeFilename)
-
         vertexFilePath = util.getCleanedFilePath("Vertex", self.field, util.FileExt.CSV)
-        edgeFilePath = util.getCleanedFilePath("Edge", self.field, util.FileExt.CSV)
-
         self.__vertexList.to_csv(vertexFilePath, index = False, sep = '\t')
-        self.__edgeList.to_csv(edgeFilePath, index = False, sep = '\t')
+
+        for srcDstPair in util.getKeyListFromDict(self.__edgeListDict):
+
+            srcLabel = srcDstPair[0].toStr("label")
+            dstLabel = srcDstPair[1].toStr("label")
+
+            edgeFilePath = util.getCleanedFilePath("Edge", self.field, util.FileExt.CSV, srcLabel, dstLabel)
+
+            self.__edgeListDict[srcDstPair].to_csv(edgeFilePath, index= False, sep = '\t')
 
     @error.callStackRoutine
     def exportVertexAndEdgeListAs(self, argFileExtension: util.FileExt):

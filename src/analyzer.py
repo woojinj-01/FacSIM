@@ -8,6 +8,7 @@ import error
 import cleaner
 import institution
 import util
+import career
 
 """
 class Analyzer
@@ -19,11 +20,8 @@ This class encapsulates cleaners over different fields.
 """
 class Analyzer:
 
-    #instIdDict = {}
-    #instDict = {}
-
     @error.callStackRoutine
-    def __init__(self, argRankTypeList):
+    def __init__(self, argRankTypeList, argKorea):
         
         self.__cleanerDict = {}
         self.instIdDict = {}
@@ -32,6 +30,12 @@ class Analyzer:
         self.__cleanedFlag = 0
 
         self.__rankTypeList = argRankTypeList
+
+        self.korea = argKorea
+
+    @error.callStackRoutine
+    def ifKoreaOnly(self):
+        return self.korea
 
     @error.callStackRoutine
     def getRankTypeList(self):
@@ -144,7 +148,7 @@ class Analyzer:
             return None
 
         if(0 == self.__queryCleanerDict(argField)):
-            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField)
+            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField, self.ifKoreaOnly())
             error.LOGGER.report("Got New Cleaner", error.LogType.INFO)
         
         return self.__cleanerDict[argField]
@@ -234,6 +238,9 @@ class Analyzer:
             if('~$' == fileName[0:2]):  #getting rid of cache file
                 continue
 
+            if('X_' == fileName[0:2]):  #masked file
+                continue
+
             if('.xlsx' == os.path.splitext(fileName)[1]):
                 self.__cleanDataForFile(os.path.join(targetDir, fileName))
 
@@ -303,6 +310,36 @@ class Analyzer:
         return giniCoeffDict
     
     @error.callStackRoutine
+    def calcGiniCoeffBSFor(self, argField):
+
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+
+        if(0 == self.__queryCleanerDict(argField)):
+            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
+            return 0
+
+        return self.__cleanerDict[argField].calcGiniCoeffBS()
+    
+    @error.callStackRoutine
+    def calcGiniCoeffBSForAll(self):
+
+        if(self.__ifCleanedFlagNotRaised()):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return dict()
+        
+        error.LOGGER.report("Calculating Gini Coefficient for All Fields", error.LogType.INFO)
+
+        giniCoeffDict = {}
+
+        for field in util.getKeyListFromDict(self.__cleanerDict):
+            giniCoeffDict[field] = self.calcGiniCoeffBSFor(field)
+
+        error.LOGGER.report("Sucesssfully Calculated Gini Coefficient for All Fields!", error.LogType.INFO)
+        return giniCoeffDict
+    
+    @error.callStackRoutine
     def calcRanksFor(self, argField):
         if(type(argField) != str):
             error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
@@ -337,42 +374,6 @@ class Analyzer:
         error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
 
         return returnDict
-    
-    @error.callStackRoutine
-    def calcMVRRankMoveFor(self, argField):
-
-        if(type(argField) != str):
-            error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
-            return 0
-
-        if(self.__ifCleanedFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
-            return 0
-        
-        if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
-            return 0
-        
-        return self.getCleanerFor(argField).calcMVRMoveForAllAlumni()
-    
-    @error.callStackRoutine
-    def calcMVRRankMoveForAll(self):
-
-        if(self.__ifCleanedFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
-            return 0
-        
-        error.LOGGER.report("Calculating MVR Rank Movements for All Fields", error.LogType.INFO)
-
-        returnValue = 1
-
-        for field in util.getKeyListFromDict(self.__cleanerDict):
-            returnValue = returnValue and self.calcMVRRankMoveFor(field)
-
-        error.LOGGER.report("Sucesssfully Calculated MVR Rank Movements for All Fields!", error.LogType.INFO)
-
-        return returnValue
-
     
     @error.callStackRoutine
     def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
@@ -443,10 +444,16 @@ class Analyzer:
             cleaner.plotGenderRatio()
 
     @error.callStackRoutine
-    def plotNonKRFac(self):
+    def plotNonKRFac(self, argDegType: career.DegreeType):
 
         for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotNonKRFac()
+            cleaner.plotNonKRFac(argDegType)
+
+    @error.callStackRoutine
+    def plotNonKRFac2(self, argDegType: career.DegreeType):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotNonKRFac2(argDegType)
 
     @error.callStackRoutine
     def plotNonKRFacRatio(self):

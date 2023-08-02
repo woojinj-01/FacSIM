@@ -8,29 +8,8 @@ import util
 import error
 from enum import Enum, auto
 import status
-
-class RankType(Enum):
-
-    SPRANK = auto()
-    JRANK = auto()
-
-    @error.callStackRoutine
-    def toStr(self, argRepType):
-        if("camelcase"):
-            match self:
-                case RankType.SPRANK:
-                    return "SpringRank"
-                case RankType.JRANK:
-                    return "Joongang-ilbo Rank"
-                case _:
-                    pass
-
-        elif("abbrev"):
-            return self.name.lower()
-        
-        else:
-            error.LOGGER.report("Wrong argRepType.", error.LogType.ERROR)
-
+import career
+import sys
 
 class InstInfo:
 
@@ -70,7 +49,7 @@ class InstInfo:
         return (self.name, self.region, self.country)
 
     @error.callStackRoutine
-    def isInvalid(self):
+    def isInvalid(self, argKoreaOnly):
 
         if(None!= self.instId and util.isEmptyData(self.instId)):
             return 1
@@ -80,6 +59,15 @@ class InstInfo:
             return 1
         elif(util.isEmptyData(self.country)):
             return 1
+        elif(argKoreaOnly):
+            if(util.areSameStrings(self.country, 'KR')):
+                if(self.region in ['blacksburg', 'ann arbor', 'austin']):
+
+                    return 1
+                else:
+                    return 0
+            else:
+                return 1    
         else:
             return 0
     
@@ -93,19 +81,6 @@ class InstInfo:
         print(self.country)
         print("==========================")
 
-
-class AlumnusInfo:
-
-    @error.callStackRoutine
-    def __init__(self, argField: str, argCurrentRank: str, argGender: util.Gender, argPhDInstId, argPhDInstName, argApInstId, argApInstName):
-        self.field: str = argField
-        self.currentRank: str = argCurrentRank
-        self.gender: util.Gender = argGender
-        self.phDInstId: int = argPhDInstId
-        self.phDInstName: str = argPhDInstName
-        self.apInstId: int = argApInstId
-        self.apInstName: str = argApInstName
-        
 class Institution:
 
     @error.callStackRoutine
@@ -178,74 +153,71 @@ class Institution:
             return None
     
     @error.callStackRoutine
-    def setRankAt(self, argField, argRank, argRankType):
-        if(argRankType not in [RankType.SPRANK, RankType.JRANK]):
+    def setRankAt(self, argField, argRank, argRankType, argDegTuple):
+        if(argRankType not in [util.RankType.SPRANK, util.RankType.JRANK]):
             error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
         
-        if(RankType.SPRANK == argRankType):
-            self.getField(argField).spRank = argRank
+        if(util.RankType.SPRANK == argRankType):
+            self.getField(argField).spRankDict[argDegTuple] = argRank
         else:
             self.getField(argField).jRank = argRank
 
     @error.callStackRoutine
-    def getRankAt(self, argField, argRankType):
+    def getRankAt(self, argField, argRankType, argDegTuple):
 
-        if(argRankType not in [RankType.SPRANK, RankType.JRANK]):
+        if(argRankType not in [util.RankType.SPRANK, util.RankType.JRANK]):
             error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
         
-        if(RankType.SPRANK == argRankType):
-            return self.getField(argField).spRank
+        if(util.RankType.SPRANK == argRankType):
+            return self.getField(argField).spRankDict[argDegTuple]
         else:
             return self.getField(argField).jRank
 
-    
     @error.callStackRoutine
-    def addAlumnusAt(self, argAlumnusInfo: AlumnusInfo):
+    def addAlumnus(self, argAlumnus: career.Alumni, argDegType: career.DegreeType):
 
-        if(self.queryField(argAlumnusInfo.field)):
-            return self.getField(argAlumnusInfo.field).addAlumnusWentTo(argAlumnusInfo)
+        if(self.queryField(argAlumnus.field)):
+            return self.getField(argAlumnus.field).addAlumnus(argAlumnus, argDegType)
         
         return None
 
     @error.callStackRoutine
-    def getAlumniAt(self, argField, argDestInstitutionId):
+    def getAlumniAt(self, argField, argDestInstitutionId, argDegType):
 
         if(self.queryField(argField)):
-            return self.getField(argField).getAlumniWentTo(argDestInstitutionId)
+            return self.getField(argField).getAlumniWentTo(argDestInstitutionId, argDegType)
         
         return None
 
     @error.callStackRoutine
-    def getNumAlumniAt(self, argField, argDestInstitutionId):
+    def getNumAlumniAt(self, argField, argDestInstitutionId, argDegType):
 
         if(self.queryField(argField)):
-            return self.getField(argField).getNumAlumniWentTo(argDestInstitutionId)
+            return self.getField(argField).getNumAlumniWentTo(argDestInstitutionId, argDegType)
         
         return 0
 
     @error.callStackRoutine    
-    def getTotalNumAlumniAt(self, argField):
+    def getTotalNumAlumniAt(self, argField, argDegType):
 
         if(self.queryField(argField)):
-            return self.getField(argField).getTotalNumAlumni()
+            return self.getField(argField).getTotalNumAlumniForDeg(argDegType)
                 
         return 0
     
     @error.callStackRoutine
-    def getTotalNumAlumni(self):
+    def getTotalNumAlumniForDeg(self, argDegType: career.DegreeType):
 
         totalNumAlumni = 0
 
         for field in list(self.fieldDict.values()):
 
-            totalNumAlumni += field.getTotalNumAlumni()
+            totalNumAlumni += field.getTotalNumAlumniForDeg(argDegType)
 
         return totalNumAlumni
     
     @error.callStackRoutine
     def isNonKRInst(self):
-
-        print(f">>> {self.name} {self.country} {int(not util.areSameStrings(self.country, 'KR'))}")
         return int(not util.areSameStrings(self.country, 'KR'))
 
 
@@ -257,8 +229,22 @@ class InstituionAtField(Institution):
         self.field = argField
         self.spRank = None
         self.jRank = None
+
+        self.spRankDict = {}
+
+        for srcDegType in career.DegreeType:
+
+            dstDegType = srcDegType.next()
+
+            if(None != dstDegType):
+                self.spRankDict[(srcDegType, dstDegType)] = None
+
+        self.spRankDict[(career.DegreeType.PHD, career.DegreeType.AP)] = None
+        
         self.alumniDict = {}
-        self.alumniDictWithGenderKey = {}
+
+        for degType in career.DegreeType:
+            self.alumniDict[degType] = []
 
         status.STATTRACKER.statFieldNumInst[self.field] += 1
 
@@ -268,138 +254,65 @@ class InstituionAtField(Institution):
         print("")
         
         print("=== Field: ", self.field, "===")
-        print("SpringRank: ", self.spRank)
+        print("SpringRank: ", self.spRankDict)
         print("Joongang Ranking: ", self.jRank)
-        print("Number Of Alumni: ", self.getTotalNumAlumni())
+        #print("Number Of Alumni: ", self.getTotalNumAlumniForDeg(career.DegreeType.PHD))
 
         print("")
 
     def printAlumniInfo(self):
-        for alumniList in util.getValuesListFromDict(self.alumniDict):
-            for alumnus in alumniList:
+
+        for degType in career.DegreeType:
+
+            if(career.DegreeType.PHD != degType):
+                continue
+
+            targetAlumniList = self.alumniDict[degType]
+
+            print(f">>>   {degType.toStr('label')}   <<<")
+            print("Number Of Alumni: ", self.getTotalNumAlumniForDeg(degType))
+        
+            for alumnus in targetAlumniList:
                 alumnus.printInfo()
 
     @error.callStackRoutine
-    def addAlumnusWentTo(self, argAlumnusInfo: AlumnusInfo):
+    def addAlumnus(self, argAlumnus: career.Alumni, argDegType: career.DegreeType):
 
-        newAlumnus = Alumni(argAlumnusInfo)
-
-        if(argAlumnusInfo.apInstId in self.alumniDict):
-            self.alumniDict[argAlumnusInfo.apInstId].append(newAlumnus)
-        else:
-            self.alumniDict[argAlumnusInfo.apInstId] = [newAlumnus]
-
-        if(argAlumnusInfo.gender in self.alumniDictWithGenderKey):
-            self.alumniDictWithGenderKey[argAlumnusInfo.gender].append(newAlumnus)
-        else:
-            self.alumniDictWithGenderKey[argAlumnusInfo.gender] = [newAlumnus]
-
-    @error.callStackRoutine
-    def getAlumniWentTo(self, argDestInstitutionId):
-        if(argDestInstitutionId in self.alumniDict):
-            return self.alumniDict[argDestInstitutionId]
-        else:
+        if(not isinstance(argDegType, career.DegreeType)):
             return 0
-    
-    @error.callStackRoutine
-    def getNumAlumniWentTo(self, argDestInstitutionId):
-        if(argDestInstitutionId in self.alumniDict):
-            return len(self.alumniDict[argDestInstitutionId])
-        else:
+        elif(not isinstance(argAlumnus, career.Alumni)):
             return 0
+        
+        self.alumniDict[argDegType].append(argAlumnus)
+
+        return 1
+
+    @error.callStackRoutine
+    def getAlumniWentTo(self, argDestInstitutionId, argDegType: career.DegreeType):
+
+        alumniList = []
+
+        for alumnus in self.alumniDict[argDegType]:
+
+            step = alumnus.query(argDegType)
+
+            if(None != step):
+                if(argDestInstitutionId == step.inst.instId):
+                    alumniList.append(alumnus)
+
+        return alumniList
     
     @error.callStackRoutine
-    def getTotalNumAlumni(self):
+    def getNumAlumniWentTo(self, argDestInstitutionId, argDegType: career.DegreeType):
+        return len(self.getAlumniWentTo(argDestInstitutionId, argDegType))
 
-        totalNumAlumni = 0
-
-        for alumniList in self.alumniDict.values():
-            totalNumAlumni += len(alumniList)
-        
-        return totalNumAlumni
+    @error.callStackRoutine
+    def getTotalNumAlumniForDeg(self, argDegType: career.DegreeType):
+        return len(self.getTotalAlumniListForDeg(argDegType))
     
     @error.callStackRoutine
-    def getTotalAlumniList(self):
-
-        returnList = []
-
-        for alumni in util.getValuesListFromDict(self.alumniDict):
-            for alumnus in alumni:
-                returnList.append(alumnus)
-
-
-        return returnList
-
-class Alumni:
-
-    @error.callStackRoutine
-    def __init__(self, argAlumnusInfo: AlumnusInfo):
-
-        self.field = argAlumnusInfo.field
-        self.currentRank = argAlumnusInfo.currentRank
-        self.gender = argAlumnusInfo.gender
-        self.phDInstId = argAlumnusInfo.phDInstId
-        self.phDInstName = argAlumnusInfo.phDInstName
-        self.apInstId = argAlumnusInfo.apInstId
-        self.apInstName = argAlumnusInfo.apInstName
-
-        self.spRankMove = None
-        self.jRankMove = None
-
-        status.STATTRACKER.statTotalNumAlumni+=1
-
-        status.STATTRACKER.statFieldNumAlumni[self.field] += 1
-
-        if(util.Gender.MALE == self.gender):
-            status.STATTRACKER.statFieldNumMale[self.field] += 1
-        elif(util.Gender.FEMALE == self.gender):
-            status.STATTRACKER.statFieldNumFemale[self.field] += 1
-
-        del argAlumnusInfo
-
-    @error.callStackRoutine
-    def setRankMove(self, argRankMove, argRankType):
-
-        if(argRankType not in [RankType.SPRANK, RankType.JRANK]):
-            error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
-        
-        if(RankType.SPRANK == argRankType):
-            self.spRankMove = argRankMove
-        else:
-            self.jRankMove = argRankMove
-
-    @error.callStackRoutine
-    def getRankMove(self, argRankType):
-        
-        if(argRankType not in [RankType.SPRANK, RankType.JRANK]):
-            error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
-
-        if(RankType.SPRANK == argRankType):
-            return self.spRankMove
-        else:
-            return self.jRankMove
-    
-    @error.callStackRoutine
-    def getGender(self):
-        return self.gender
-
-    @error.callStackRoutine
-    def printInfo(self):
-
-        print("")
-
-        print("---------------------")
-        print("Field: ", self.field)
-        print("Current Rank: ",self.currentRank)
-        print("Gender: ", util.genderToStr(self.gender))
-        print("PhD Inst ID: ", self.phDInstId)
-        print("PhD Inst Name: ", self.phDInstName)
-        print("AP Inst ID: ", self.apInstId)
-        print("AP Inst Name: ", self.apInstName)
-        print("SpringRank Movement: ", self.spRankMove)
-        print("JRank Movement: ", self.jRankMove)
-        print("---------------------")
-
+    def getTotalAlumniListForDeg(self, argDegType: career.DegreeType):
+        return self.alumniDict[argDegType]
 
 
 if(__name__ == "__main__"):

@@ -22,15 +22,15 @@ class StatusTracker:
         self.statTotalNumFemale = 0
 
         # Status (numbers) per field
-        self.statFieldNumInst = {'Physics': 0, 'Computer Science': 0}
-        self.statFieldNumAlumni = {'Physics': 0, 'Computer Science': 0}
-        self.statFieldNumMale = {'Physics': 0, 'Computer Science': 0}
-        self.statFieldNumFemale = {'Physics': 0, 'Computer Science': 0}
+        self.statFieldNumInst = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
+        self.statFieldNumAlumni = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
+        self.statFieldNumMale = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
+        self.statFieldNumFemale = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
 
         # Missing datas per field
-        self.statNumRowPhDWithNoAP = {'Physics': 0, 'Computer Science': 0}
-        self.statNumRowAPWithNoPhD = {'Physics': 0, 'Computer Science': 0}
-        self.statNumRowWithNoPhDAndAP = {'Physics': 0, 'Computer Science': 0}
+        self.statNumRowPhDWithNoAP = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
+        self.statNumRowAPWithNoPhD = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
+        self.statNumRowWithNoPhDAndAP = {'Physics': 0, 'Computer Science': 0, 'Computer Science_Aaron': 0}
 
 
     def print(self):
