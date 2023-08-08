@@ -33,10 +33,9 @@ class LogType(Enum):
 
 
 class LOGGER_C():
-    def __init__(self, argLevel: LogType) -> None:
+    def __init__(self, argLevel: LogType, argLogFilePath) -> None:
 
-        fileName = ''.join([dt.datetime.now().strftime("%Y%m%d"), '.log'])
-        self.logFilePath = os.path.join('../log', fileName)
+        self.logFilePath = argLogFilePath
         level = None
 
         

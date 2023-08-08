@@ -9,7 +9,7 @@ import error
 from enum import Enum, auto
 import status
 import career
-import sys
+import setting
 
 class InstInfo:
 
@@ -49,7 +49,7 @@ class InstInfo:
         return (self.name, self.region, self.country)
 
     @error.callStackRoutine
-    def isInvalid(self, argKoreaOnly):
+    def isInvalid(self):
 
         if(None!= self.instId and util.isEmptyData(self.instId)):
             return 1
@@ -59,7 +59,7 @@ class InstInfo:
             return 1
         elif(util.isEmptyData(self.country)):
             return 1
-        elif(argKoreaOnly):
+        elif("CLOSED" == setting.PARAM["Basic"]["networkType"]):
             if(util.areSameStrings(self.country, 'KR')):
                 if(self.region in ['blacksburg', 'ann arbor', 'austin']):
 
@@ -113,7 +113,7 @@ class Institution:
         for item in sorted(self.fieldDict.items()):
 
             department = self.fieldDict[item[0]]
-            department.printInfo()
+            print(department)
 
             if("field" == argGran):
                 continue
@@ -122,6 +122,33 @@ class Institution:
 
 
         print("===========================================================")
+
+    @error.callStackRoutine
+    def __repr__(self, argGran) -> str:
+        strList = []
+
+        strList.append("===========================================================")
+
+        strList.append(f"Institution Id: {self.instId}")
+        strList.append(f"Name: {self.name}")
+        strList.append(f"Region: {self.region}")
+        strList.append(f"Country: {self.country}")
+        strList.append("")
+
+        if("inst" == argGran):
+            return '\n'.join(strList)
+        
+        for item in sorted(self.fieldDict.items()):
+
+            department = self.fieldDict[item[0]]
+            strList.append(department.__repr__())
+
+            if("field" == argGran):
+                continue
+            
+            department.printAlumniInfo()
+        
+        return '\n'.join(strList)
 
     @error.callStackRoutine
     def flushInfoToList(self, argList: list):
@@ -142,7 +169,6 @@ class Institution:
     
     @error.callStackRoutine
     def queryField(self, argField):
-
         return int(argField in self.fieldDict)
     
     @error.callStackRoutine
@@ -153,25 +179,20 @@ class Institution:
             return None
     
     @error.callStackRoutine
-    def setRankAt(self, argField, argRank, argRankType, argDegTuple):
-        if(argRankType not in [util.RankType.SPRANK, util.RankType.JRANK]):
-            error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
-        
-        if(util.RankType.SPRANK == argRankType):
-            self.getField(argField).spRankDict[argDegTuple] = argRank
-        else:
-            self.getField(argField).jRank = argRank
+    def setRankAt(self, argField, argRank, argDegType: career.DegreeType):
+
+        if(argDegType not in setting.PARAM["Basic"]["targetDeg"]):
+            error.LOGGER.report("Invalid argDegType", error.LogType.ERROR)
+
+        self.getField(argField).rankDict[argDegType] = argRank
 
     @error.callStackRoutine
-    def getRankAt(self, argField, argRankType, argDegTuple):
+    def getRankAt(self, argField, argDegType: career.DegreeType):
 
-        if(argRankType not in [util.RankType.SPRANK, util.RankType.JRANK]):
-            error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
-        
-        if(util.RankType.SPRANK == argRankType):
-            return self.getField(argField).spRankDict[argDegTuple]
-        else:
-            return self.getField(argField).jRank
+        if(argDegType not in setting.PARAM["Basic"]["targetDeg"]):
+            error.LOGGER.report("Invalid argDegType", error.LogType.ERROR)
+
+        return self.getField(argField).rankDict[argDegType]
 
     @error.callStackRoutine
     def addAlumnus(self, argAlumnus: career.Alumni, argDegType: career.DegreeType):
@@ -206,6 +227,11 @@ class Institution:
         return 0
     
     @error.callStackRoutine
+    def getTotalAlumniListForDeg(self, argField, argDegType):
+        if(self.queryField(argField)):
+            return self.getField(argField).getTotalAlumniListForDeg(argDegType)
+    
+    @error.callStackRoutine
     def getTotalNumAlumniForDeg(self, argDegType: career.DegreeType):
 
         totalNumAlumni = 0
@@ -227,45 +253,31 @@ class InstituionAtField(Institution):
     def __init__(self, argField):
 
         self.field = argField
-        self.spRank = None
-        self.jRank = None
 
-        self.spRankDict = {}
-
-        for srcDegType in career.DegreeType:
-
-            dstDegType = srcDegType.next()
-
-            if(None != dstDegType):
-                self.spRankDict[(srcDegType, dstDegType)] = None
-
-        self.spRankDict[(career.DegreeType.PHD, career.DegreeType.AP)] = None
-        
+        self.rankDict = {}
         self.alumniDict = {}
 
-        for degType in career.DegreeType:
+        for degType in setting.PARAM["Basic"]["targetDeg"]:
             self.alumniDict[degType] = []
+            self.rankDict[degType] = None
 
         status.STATTRACKER.statFieldNumInst[self.field] += 1
 
     @error.callStackRoutine
-    def printInfo(self):
-        
-        print("")
-        
-        print("=== Field: ", self.field, "===")
-        print("SpringRank: ", self.spRankDict)
-        print("Joongang Ranking: ", self.jRank)
-        #print("Number Of Alumni: ", self.getTotalNumAlumniForDeg(career.DegreeType.PHD))
+    def __repr__(self) -> str:
+        strList = []
 
-        print("")
-
+        strList.append("")
+        strList.append(f"=== Field: {self.field}===")
+        strList.append(f"Rank: {self.rankDict}")
+        strList.append("")
+        
+        return '\n'.join(strList)
+    
+    @error.callStackRoutine
     def printAlumniInfo(self):
 
-        for degType in career.DegreeType:
-
-            if(career.DegreeType.PHD != degType):
-                continue
+        for degType in setting.PARAM["Basic"]["targetDeg"]:
 
             targetAlumniList = self.alumniDict[degType]
 
@@ -273,12 +285,12 @@ class InstituionAtField(Institution):
             print("Number Of Alumni: ", self.getTotalNumAlumniForDeg(degType))
         
             for alumnus in targetAlumniList:
-                alumnus.printInfo()
+                print(alumnus)
 
     @error.callStackRoutine
     def addAlumnus(self, argAlumnus: career.Alumni, argDegType: career.DegreeType):
 
-        if(not isinstance(argDegType, career.DegreeType)):
+        if(argDegType not in setting.PARAM["Basic"]["targetDeg"]):
             return 0
         elif(not isinstance(argAlumnus, career.Alumni)):
             return 0

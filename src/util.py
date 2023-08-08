@@ -42,7 +42,6 @@ class RankType(Enum):
     SPRANK = auto()
     JRANK = auto()
 
-    @error.callStackRoutine
     def toStr(self, argRepType):
         if("camelcase" == argRepType):
             match self:
@@ -268,8 +267,6 @@ def getResultFilePath(argFileExt: FileExt) -> str:
     resultFileNameList = ["Result", currentDateStr, currentTimeStr]
 
     return targetDir + "/" + '_'.join(resultFileNameList) + fileExtToStr(argFileExt)
-
-
 
 @error.callStackRoutine
 def getRidOfTie(argRankList: list) -> list:
@@ -649,7 +646,7 @@ def getRankBasedOn(argScoreList: list) -> list:
     return rankList 
 
 @error.callStackRoutine
-def calGiniCoeff(argList, argSubject: str, argField: str):
+def calGiniCoeff(argList):
 
     if(0 == len(argList)):
         return None
@@ -687,35 +684,7 @@ def calGiniCoeff(argList, argSubject: str, argField: str):
     yCoList.append(np.float32(100))
     baseList.append(np.float32(100))
 
-    font = {'family': 'Helvetica', 'size': 9}
-
-    plt.rc('font', **font)
-    plt.figure(figsize=(7,5), dpi=200)
-
-    titleStr = "Lorentz Curve on " + argSubject + " (Field: " + argField + ")"
-    ylabelStr = "Cumulative Number of " + argSubject + " (Unit: Percentage)"
-
-    plt.title(titleStr)
-    plt.xlabel("Cumulative Number of Institutions (Unit: Percentage)")
-    plt.ylabel(ylabelStr)
-
-    plt.xlim(np.float32(0), np.float32(100))
-    plt.ylim(np.float32(0), np.float32(100))
-
-    plt.plot(xCoList, yCoList, 'bo-', markersize = 2)
-    plt.plot(baseList, baseList, color = 'black', linewidth = 0.5)
-
-    plt.fill_between(xCoList, yCoList, baseList, alpha = 0.2, color = 'grey')
-
-    plt.text(60, 40, str(giniCoeff), color='black', fontsize=7)
-
-    figPath = getPlotPath("FacultyProduction", "LorentzCurve", argField)
-    plt.savefig(figPath)
-    plt.clf()
-
-    
-
-    return giniCoeff
+    return (giniCoeff, xCoList, yCoList, baseList)
         
 @error.callStackRoutine
 def readFileFor(argFilePath: str, argFileExtensionReq: list):   
@@ -780,6 +749,94 @@ def parseKwArgs(argKwArgs: dict, argKeyWordList: list) -> dict:
             returnDict[keyword] = 'auto'
 
     return returnDict
+
+@error.callStackRoutine
+def isLabelOfEnum(argEnumClass, argLabel):
+    return any(argLabel == member.name for member in argEnumClass)
+
+@error.callStackRoutine
+def getStrLineEq(argFirstPointTuple, argSecondPointTuple):
+    def wrapper(argXCo):
+
+        lowXCo = argFirstPointTuple[0]
+        lowYCo = argFirstPointTuple[1]
+
+        highXCo = argSecondPointTuple[0]
+        highYCo = argSecondPointTuple[1]
+
+        gradient = (highYCo - lowYCo) / (highXCo - lowXCo)
+
+        return gradient * (argXCo - lowXCo) + lowYCo
+    return wrapper
+
+@error.callStackRoutine
+def sampleLinePlot(argXCoList, argYCoList, argXCoTosample):
+
+    if(any(not isinstance(targetList, list) for targetList in [argXCoList, argYCoList])):
+        error.LOGGER.report("argXCoList and argYCoList should be list type", error.LogType.ERROR)
+        return None
+    elif(sorted(argXCoList) != argXCoList):
+        error.LOGGER.report("argXCoList must be sorted", error.LogType.ERROR)
+        return None
+    elif(len(argXCoList) != len(argYCoList)):
+        error.LOGGER.report("argXCoList and argYCoList should be same length.", error.LogType.ERROR)
+        return None
+    elif(len(argXCoList) < 2):
+        error.LOGGER.report("There should be at least two data points.", error.LogType.ERROR)
+        return None
+    
+    if(argXCoTosample in argXCoList):
+        return argYCoList[argXCoList.index(argXCoTosample)]
+    
+    elif(min(argXCoList) > argXCoTosample):
+        lowXIndex = 0
+        highXIndex = lowXIndex + 1
+
+    elif(max(argXCoList) < argXCoTosample):
+        lowXIndex = len(argXCoList) - 2
+        highXIndex = lowXIndex + 1
+    else:
+        for lowXIndex in range(len(argXCoList)-1):
+
+            highXIndex = lowXIndex + 1
+
+            if(argXCoList[lowXIndex] < argXCoTosample < argXCoList[highXIndex]):
+                break
+
+    lowXCo = argXCoList[lowXIndex]
+    lowYCo = argYCoList[lowXIndex]
+
+    highXCo = argXCoList[highXIndex]
+    highYCo = argYCoList[highXIndex]
+
+    lineEq = getStrLineEq((lowXCo, lowYCo), (highXCo, highYCo))
+
+    return lineEq(argXCoTosample)
+
+@error.callStackRoutine
+def listsToDataFrame(argColumnList, *argLists):
+
+    if(1 != len(argLists) or not isinstance(argLists[0], list) or 0 == len(argLists[0])):
+        return None
+    else:
+        lists = argLists[0]
+
+    if(not isinstance(argColumnList, list)):
+        return None
+    elif(any(not isinstance(targetList, list) for targetList in lists)):
+        return None
+    elif(len(argColumnList) != len(lists)):
+        return None
+    elif(any(len(targetList) != len(lists[0]) for targetList in lists)):
+        return None
+
+    
+    dataDict = {}
+
+    for index in range(len(argColumnList)):
+        dataDict[argColumnList[index]] = lists[index]
+
+    return pd.DataFrame(dataDict)
 
 if(__name__ == '__main__'):
 

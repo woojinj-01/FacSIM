@@ -9,6 +9,11 @@ import cleaner
 import institution
 import util
 import career
+import setting
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import waiter
 
 """
 class Analyzer
@@ -21,7 +26,7 @@ This class encapsulates cleaners over different fields.
 class Analyzer:
 
     @error.callStackRoutine
-    def __init__(self, argRankTypeList, argKorea):
+    def __init__(self):
         
         self.__cleanerDict = {}
         self.instIdDict = {}
@@ -29,17 +34,18 @@ class Analyzer:
 
         self.__cleanedFlag = 0
 
-        self.__rankTypeList = argRankTypeList
-
-        self.korea = argKorea
+        self.__nextPID = 1
 
     @error.callStackRoutine
-    def ifKoreaOnly(self):
-        return self.korea
+    def getNextPID(self):
+        pID = self.__nextPID
+        self.__nextPID += 1
 
+        return pID
+    
     @error.callStackRoutine
-    def getRankTypeList(self):
-        return self.__rankTypeList
+    def isClosedSys(self):
+        return "CLOSED" == setting.PARAM["Basic"]["networkType"]
     
     @error.callStackRoutine
     def __raiseCleanedFlag(self):
@@ -148,7 +154,7 @@ class Analyzer:
             return None
 
         if(0 == self.__queryCleanerDict(argField)):
-            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField, self.ifKoreaOnly())
+            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField, self.isClosedSys())
             error.LOGGER.report("Got New Cleaner", error.LogType.INFO)
         
         return self.__cleanerDict[argField]
@@ -280,7 +286,7 @@ class Analyzer:
         return 1
     
     @error.callStackRoutine
-    def calcGiniCoeffFor(self, argField):
+    def plotLorentzCurveFor(self, argField, argDegTuple, argIntegrated):
 
         if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
@@ -290,54 +296,83 @@ class Analyzer:
             error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
 
-        return self.__cleanerDict[argField].calcGiniCoeff()
+        return self.__cleanerDict[argField].plotLorentzCurve(argDegTuple, argIntegrated)
     
     @error.callStackRoutine
-    def calcGiniCoeffForAll(self):
+    def plotLorentzCurveForAll(self, argDegTuple):
 
         if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return dict()
         
-        error.LOGGER.report("Calculating Gini Coefficient for All Fields", error.LogType.INFO)
+        error.LOGGER.report("Plotting Lorentz Curve for All Fields", error.LogType.INFO)
 
         giniCoeffDict = {}
 
         for field in util.getKeyListFromDict(self.__cleanerDict):
-            giniCoeffDict[field] = self.calcGiniCoeffFor(field)
+            giniCoeffDict[field] = self.plotLorentzCurveFor(field, argDegTuple, 0)
 
-        error.LOGGER.report("Sucesssfully Calculated Gini Coefficient for All Fields!", error.LogType.INFO)
+        error.LOGGER.report("Sucesssfully Plotted for All Fields!", error.LogType.INFO)
         return giniCoeffDict
     
     @error.callStackRoutine
-    def calcGiniCoeffBSFor(self, argField):
-
-        if(self.__ifCleanedFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
-            return 0
-
-        if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
-            return 0
-
-        return self.__cleanerDict[argField].calcGiniCoeffBS()
-    
-    @error.callStackRoutine
-    def calcGiniCoeffBSForAll(self):
+    def plotLorentzCurveIntegrated(self, argDegTuple):
 
         if(self.__ifCleanedFlagNotRaised()):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return dict()
+        elif(not isinstance(argDegTuple, tuple)):
+            error.LOGGER.report("Invalid argDegTuple.", error.LogType.ERROR)
+            return 0
         
-        error.LOGGER.report("Calculating Gini Coefficient for All Fields", error.LogType.INFO)
+        error.LOGGER.report("Plotting Lorentz Curve for All Fields", error.LogType.INFO)
+
+        srcDegType = argDegTuple[0]
+        dstDegType = argDegTuple[1]
 
         giniCoeffDict = {}
 
-        for field in util.getKeyListFromDict(self.__cleanerDict):
-            giniCoeffDict[field] = self.calcGiniCoeffBSFor(field)
+        colorList = ['#4169E1', '#2E8B57', '#C71585']
+        colorPointer = 0
 
-        error.LOGGER.report("Sucesssfully Calculated Gini Coefficient for All Fields!", error.LogType.INFO)
+        markerXCoList = [i for i in range(0, 101, 10)]
+
+        font = {'family': 'Helvetica', 'size': 9}
+
+        plt.rc('font', **font)
+        plt.figure(figsize=(7,5), dpi=200)
+
+        titleStr = f"Lorentz Curve on {srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production (Integrated)"
+        ylabelStr = f"Cumulative Ratio Over Total {srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production (Unit: Percentage)"
+
+        plt.title(titleStr)
+        plt.xlabel("Cumulative Ratio Over Total Number of Institutions (Unit: Percentage)")
+        plt.ylabel(ylabelStr)
+
+        plt.xlim(np.float32(0), np.float32(100))
+        plt.ylim(np.float32(-1), np.float32(100))
+
+        for field in util.getKeyListFromDict(self.__cleanerDict):
+            (giniCoeffDict[field], xCoList, yCoList, baseList) = self.plotLorentzCurveFor(field, argDegTuple, 1)
+
+            plt.plot(xCoList, yCoList, color = colorList[colorPointer], linewidth = 1.5, label = field)
+            plt.scatter(markerXCoList, [util.sampleLinePlot(xCoList, yCoList, index) for index in markerXCoList], \
+                        c = colorList[colorPointer], s = 20)
+
+            plt.plot(baseList, baseList, color = 'black', linewidth = 1)
+
+            colorPointer += 1
+
+        plt.legend()
+        
+        figPath = waiter.WAITER.getPlotPath(f"{srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production", "LorentzCurve", "Integrated")
+        #figPath = util.getPlotPath(f"{srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production", "LorentzCurve", "Integrated")
+        plt.savefig(figPath)
+        plt.clf()
+
+        error.LOGGER.report("Sucesssfully Plotted for All Fields!", error.LogType.INFO)
         return giniCoeffDict
+
     
     @error.callStackRoutine
     def calcRanksFor(self, argField):
@@ -376,46 +411,46 @@ class Analyzer:
         return returnDict
     
     @error.callStackRoutine
-    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender):
+    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender, argDegTuple: tuple):
 
         returnDict = {}
 
         for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveBasedOnGender(argGender)
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveBasedOnGender(argGender, argDegTuple)
 
         return returnDict
     
     @error.callStackRoutine
-    def calcAvgMVRMoveBasedOnGenderForField(self, argGender: util.Gender, argField: str):
+    def calcAvgMVRMoveBasedOnGenderForField(self, argGender: util.Gender, argDegTuple: tuple, argField: str):
 
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
 
         returnDict = {}
 
-        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveBasedOnGender(argGender)
+        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveBasedOnGender(argGender, argDegTuple)
 
         return returnDict
 
     @error.callStackRoutine
-    def calcAvgMVRMoveForRange(self, argPercentLow: int, argPercentHigh: int):
+    def calcAvgMVRMoveForRange(self, argRangeTuple: tuple, argDegTuple: tuple):
 
         returnDict = {}
 
         for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveForRange(argPercentLow, argPercentHigh)
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveForRange(argRangeTuple, argDegTuple)
 
         return returnDict
 
     @error.callStackRoutine
-    def calcAvgMVRMoveForRangeForField(self, argPercentLow: int, argPercentHigh: int, argField: str):
+    def calcAvgMVRMoveForRangeForField(self, argRangeTuple: tuple, argDegTuple: tuple, argField: str):
 
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
 
         returnDict = {}
 
-        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveForRange(argPercentLow, argPercentHigh)
+        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveForRange(argRangeTuple, argDegTuple)
 
         return returnDict
 
@@ -432,10 +467,10 @@ class Analyzer:
             cleaner.plotRankMoveCompareForGender(**argOptions)
 
     @error.callStackRoutine
-    def plotRankMove(self, argLowerBound, argUpperBound):
+    def plotRankMove(self, argRangeTuple, argDegTuple):
 
         for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotRankMove(argLowerBound, argUpperBound)
+            cleaner.plotRankMove(argRangeTuple, argDegTuple)
 
     @error.callStackRoutine
     def plotGenderRatio(self):
@@ -444,22 +479,10 @@ class Analyzer:
             cleaner.plotGenderRatio()
 
     @error.callStackRoutine
-    def plotNonKRFac(self, argDegType: career.DegreeType):
+    def plotNonKR(self, argDegTuple: tuple, argKROnly, argSizeOfCluster):
 
         for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotNonKRFac(argDegType)
-
-    @error.callStackRoutine
-    def plotNonKRFac2(self, argDegType: career.DegreeType):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotNonKRFac2(argDegType)
-
-    @error.callStackRoutine
-    def plotNonKRFacRatio(self):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotNonKRFacRatio()
+            cleaner.plotNonKR(argDegTuple, argKROnly, argSizeOfCluster)
 
 if(__name__ == '__main__'):
 

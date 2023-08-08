@@ -122,11 +122,12 @@ class Career:
 class Alumni:
 
     @error.callStackRoutine
-    def __init__(self, argField, argCurrRank, argGender: util.Gender):
+    def __init__(self, argField, argCurrRank, argGender: util.Gender, argPID):
 
         self.field = argField
         self.currentRank = argCurrRank
         self.gender = argGender
+        self.pid = argPID
 
         self.career = Career()
 
@@ -143,10 +144,26 @@ class Alumni:
             status.STATTRACKER.statFieldNumFemale[self.field] += 1
 
     @error.callStackRoutine
-    def getRankMove(self, argRankType, argDegTuple):
+    def __repr__(self) -> str:
+        
+        strList = []
 
-        if(argRankType not in [util.RankType.SPRANK, util.RankType.JRANK]):
-            error.LOGGER.report("Invalid argRankType", error.LogType.ERROR)
+        strList.append("")
+        strList.append("---------------------")
+        strList.append(f"Field: {self.field}")
+        strList.append(f"Current Rank: {self.currentRank}")
+        strList.append(f"Gender: {util.genderToStr(self.gender)}")
+        strList.append(f"PID: {self.pid}")
+
+        for step in self.career:
+            strList.append(step.__repr__())
+
+        strList.append("---------------------")
+
+        return '\n'.join(strList)
+
+    @error.callStackRoutine
+    def getRankMove(self, argDegTuple):
 
         srcDegType = argDegTuple[0]
         dstDegType = argDegTuple[1]
@@ -157,8 +174,8 @@ class Alumni:
         if(None == srcInst or None == dstInst):
             return None
         
-        srcInstRank = srcInst.getRankAt(self.field, argRankType, argDegTuple)
-        dstInstRank = dstInst.getRankAt(self.field, argRankType, argDegTuple)
+        srcInstRank = srcInst.getRankAt(self.field, srcDegType)
+        dstInstRank = dstInst.getRankAt(self.field, dstDegType)
 
         if(None == srcInstRank or None == dstInstRank):
             return None
@@ -191,21 +208,3 @@ class Alumni:
             return None
         else:
             return step.inst
-
-    @error.callStackRoutine
-    def printInfo(self):
-
-        print("")
-
-        print("---------------------")
-        print("Field: ", self.field)
-        print("Current Rank: ",self.currentRank)
-        print("Gender: ", util.genderToStr(self.gender))
-
-        print("SpringRank Movement: ", self.spRankMove)
-        print("JRank Movement: ", self.jRankMove)
-
-        for step in self.career:
-            print(step)
-
-        print("---------------------")
