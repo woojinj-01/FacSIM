@@ -8,6 +8,7 @@ src/sandbox.py
 dataset/rankSetTest.xlsx
 ini/*
 !ini/.gitkeep
+!ini/setting.ini
 archive
 results/*
 !results/.gitkeep
