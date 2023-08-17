@@ -1,5 +1,5 @@
-# cs2i_wj
-Source codes developed while working as an external researcher in PKNU.
+# FacSIM
+Python-based simulator for analyzing hierarchies in faculty hiring network of South Korea
 
 ## Directory
 ### src
