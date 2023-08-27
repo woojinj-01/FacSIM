@@ -6,6 +6,7 @@ Python-based simulator for analyzing hierarchies in faculty hiring network of So
 Contains source codes.
 ### dataset
 Contains ```instList.xlsx``` (User should manually make this file to initialize instList.), dataset/dirty, and dataset/cleaned.
+Furthermore, any ```.xlsx``` or ```.csv``` file for setting institutions' ranks are recommended to be located here.
 #### dataset/dirty
 Contains dirty datasets, which are not cleaned yet.
 ### results
