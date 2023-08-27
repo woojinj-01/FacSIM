@@ -8,7 +8,7 @@ Contains source codes.
 Contains ```instList.xlsx``` (User should manually make this file to initialize instList.), dataset/dirty, and dataset/cleaned.
 Furthermore, any ```.xlsx``` or ```.csv``` file for setting institutions' ranks are recommended to be located here.
 #### dataset/dirty
-Contains dirty datasets, which are not cleaned yet.
+Contains dirty datasets (should be represented in ```.xlsx``` format), which are not cleaned yet.
 ### results
 Contains directories with results saved, which are classified by simulation date and time.
 Results are under the directory named results/YYYY_MM_DD/hh:mm:ss.
