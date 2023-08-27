@@ -1,3 +1,8 @@
+"""
+Author: Woojin Jung (GitHub: woojinj-01)
+Email: blankspace@kaist.ac.kr
+
+"""
 from enum import Enum
 import error
 import institution
@@ -130,9 +135,6 @@ class Alumni:
         self.pid = argPID
 
         self.career = Career()
-
-        self.spRankMove = None
-        self.jRankMove = None
 
         status.STATTRACKER.statTotalNumAlumni+=1
 

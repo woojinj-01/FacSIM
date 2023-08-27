@@ -1,10 +1,8 @@
 dataset/instList.xlsx
 dataset/dirty/*
-dataset/jrank/*
 src/__pycache__
 src/sandbox.py
 !dataset/dirty/.gitkeep
-!dataset/jrank/.gitkeep
 dataset/rankSetTest.xlsx
 ini/*
 !ini/.gitkeep

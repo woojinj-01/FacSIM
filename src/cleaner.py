@@ -22,30 +22,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 from scipy.integrate import quad
 
-class CleanerFlag():
-
-    @error.callStackRoutine
-    def __init__(self):
-        self.MVRRankCalculated = False
-        self.giniCoeffCalculated = False
-
-    @error.callStackRoutine
-    def raiseMVRRankCalculated(self):
-        self.MVRRankCalculated = True
-
-    @error.callStackRoutine
-    def ifMVRRankCalculated(self):
-        return self.MVRRankCalculated
-    
-    @error.callStackRoutine
-    def raiseGiniCoeffCalculated(self):
-        self.giniCoeffCalculated = True
-
-    @error.callStackRoutine
-    def ifGiniCoeffCalculated(self):
-        return self.giniCoeffCalculated
-
-
 """
 class Cleaner
 
@@ -57,20 +33,17 @@ Cleaner is also responsible for any calculation such as Gini Coefficient or MVR 
 """
 class Cleaner():
 
-    """
-    __init__(self)
+    # ================================================================================== #
+    # 0. Constructor
+    # ================================================================================== #
 
-    Constructor of class Cleaner. You can set columns of output files by modifying the constructor.
-    """
     @error.callStackRoutine
     def __init__(self, argAnalyzer, argField, argKorea):
 
         self.analyzer= argAnalyzer
 
-        # Field Name
         self.field = argField
 
-        # Dataframe of output vertex list
         self.__vertexList = pd.DataFrame(columns = ['# u', 'Institution', 'Region', 'Country'])
 
         self.__edgeListDict = {}
@@ -86,21 +59,22 @@ class Cleaner():
 
             self.__edgeListDict[(srcDegType, dstDegType)] = pd.DataFrame(columns = ['# u', '# v', 'gender', 'pid'])
         
-
-        # Dictonary holding institution ids, which are matched to institutions one by one.
         self.__localInstIdList = []
 
         self.korea = argKorea
 
         self.scholarDict = {}
 
-        # Flags.
-        self.flags = CleanerFlag()
+        self.flags = util.Flag(['RankSet'])
 
-    @error.callStackRoutine
-    def isClosedSys(self):
-        return "CLOSED" == setting.PARAM["Basic"]["networkType"]
-    
+    # ================================================================================== #
+    # 1. Methods for Management
+    # ================================================================================== #
+
+    # ====================================================== #
+    # 1.a. Methods for Managing Institutions in Field
+    # ====================================================== #
+
     @error.callStackRoutine
     def getTotalNumInstInField(self):
         return len(self.__localInstIdList)
@@ -113,6 +87,10 @@ class Cleaner():
         else:
             self.__localInstIdList.append(argInstId)
             return 1
+    
+    # ====================================================== #
+    # 1.b. Methods for Cleaning Data
+    # ====================================================== #
         
     @error.callStackRoutine
     def __cleanStep(self, argTargetRow, argRowIterator: util.rowIterator, argDegType: career.DegreeType):
@@ -242,67 +220,125 @@ class Cleaner():
         error.LOGGER.report("Successfully Cleaned a Row!", error.LogType.INFO)
 
         status.STATTRACKER.statTotalNumRowCleaned += 1
+
         return 1
+    
+
+    # ====================================================== #
+    # 1.c. Others
+    # ====================================================== #
+    
+    @error.callStackRoutine
+    def isClosedSys(self):
+        return "CLOSED" == setting.PARAM["Basic"]["networkType"]
+
+    # ================================================================================== #
+    # 2. Methods for Analysis
+    # ================================================================================== #
+
+    # ====================================================== #
+    # 2.a. Methods for Setting Ranks
+    # ====================================================== #
 
     @error.callStackRoutine
-    def __sortEdgeList(self):
-
-        for edgeList in util.getValuesListFromDict(self.__edgeListDict):
-            edgeList.sort_values(by=['# u', '# v'], inplace=True)
-
-    @error.callStackRoutine
-    def __sortVertexList(self):
-        self.__vertexList.sort_values(by = ['# u'], inplace = True)
-
-    @error.callStackRoutine
-    def __calcSpRankForStep(self, argDegTuple, argDegForRankSet):
-
-        error.LOGGER.report("Calculating SpringRank, which is an approximation of MVR Rank", error.LogType.INFO)
-        error.LOGGER.report("Copyright (c) 2017 Caterina De Bacco and Daniel B Larremore", error.LogType.INFO)
+    def __calcSpRankForStep(self, argDegTuple, argDegForRankSet, argFilePathForRankSet):
 
         srcDegType = argDegTuple[0]
         dstDegType = argDegTuple[1]
 
         if(srcDegType not in self.targetDegList or srcDegType not in self.targetDegList):
-            error.LOGGER.report("Invalid argDegTyple.", error.LogType.WARNING)
+            error.LOGGER.report("Invalid argDegType.", error.LogType.WARNING)
             return None
 
         targetEdgeList = self.__edgeListDict[(srcDegType, dstDegType)]
+        targetInstIdList = []
 
-        adjMat = np.zeros((len(self.__localInstIdList), len(self.__localInstIdList)), dtype = int)
+        # 1. Gather targetInstIdList
+
+        if(None!=argFilePathForRankSet):
+            targetDf = util.readFileFor(argFilePathForRankSet, [util.FileExt.XLSX])
+
+            targetInstList = targetDf['Inst'].tolist()
+
+            for instId in self.__localInstIdList:
+            
+                inst = self.analyzer.getExistingInstitution(instId)
+
+                if(None == inst):
+                    continue
+
+                instInfoList = []
+
+                inst.flushInfoToList(instInfoList)
+
+                instInfoStr = ', '.join(instInfoList[1:])
+
+                if(util.ifStrMatchesAmong(instInfoStr, targetInstList)):
+                    targetInstIdList.append(instId)
+
+        else:
+            targetInstIdList = self.__localInstIdList
+
+        # 2. Make adjMat
+
+        matSize = len(targetInstIdList)
+
+        adjMat = np.zeros((matSize, matSize), dtype = int)
 
         id2IndexMap = {}
         index2IdMap = {}
 
         targetRow = None
 
-        localInstIdListSorted = sorted(self.__localInstIdList)
+        targetInstIdListSorted = sorted(targetInstIdList)
 
-        for i in range(len(localInstIdListSorted)):
-            id2IndexMap[localInstIdListSorted[i]] = i
-            index2IdMap[i] = localInstIdListSorted[i]
+        for i in range(len(targetInstIdListSorted)):
+            id2IndexMap[targetInstIdListSorted[i]] = i
+            index2IdMap[i] = targetInstIdListSorted[i]
 
         for numRow in range(len(targetEdgeList.index)):
             targetRow = targetEdgeList.iloc[numRow]
-            adjMat[id2IndexMap[targetRow[0]], id2IndexMap[targetRow[1]]] += 1
 
-        spRankList = sp.get_ranks(adjMat)
-        inverseTemp = sp.get_inverse_temperature(adjMat, spRankList)
+            srcId = targetRow[0]
+            dstId = targetRow[1]
 
-        rankList = util.getRankBasedOn(spRankList)
+            if(all(id in targetInstIdList for id in [srcId, dstId])):
+
+                if(career.DegreeType.PHD == argDegForRankSet):
+                    status.STATTRACKER.statTotalNumAlumniInScope[self.field] += 1
+
+                adjMat[id2IndexMap[srcId], id2IndexMap[dstId]] += 1
+
+        adjMat += 1     #adding 1 to all elements for precise anlaysis
+
+        # 3. Get SpringRank Scores
+
+        error.LOGGER.report("Calculating SpringRank.", error.LogType.INFO)
+        error.LOGGER.report("Copyright (c) 2017 Caterina De Bacco and Daniel B Larremore", error.LogType.INFO)
+
+        spScoreList = sp.get_ranks(adjMat)
+        inverseTemp = sp.get_inverse_temperature(adjMat, spScoreList)
+
+        error.LOGGER.report("Sucessfully Calculated SpringRank!", error.LogType.INFO)
+
+        # 4. Convert Scores into Ranks
+
+        rankList = util.getRankBasedOn(spScoreList)
         rankList = util.getRidOfTie(rankList)
+
+        # 5. Record the Ranks
+
 
         for index in range(len(rankList)):
             instId = index2IdMap[index]
+            rank = rankList[index]
 
-            self.analyzer.getExistingInstitution(instId).setRankAt(self.field, rankList[index], argDegForRankSet)
-
-        error.LOGGER.report("Sucessfully Calculated SpringRank!", error.LogType.INFO)
+            self.analyzer.getExistingInstitution(instId).setRankAt(self.field, rank, argDegForRankSet)
 
         return inverseTemp
     
     @error.callStackRoutine
-    def calcRank(self):
+    def setRanks(self):
 
         returnDict = {}
 
@@ -315,8 +351,9 @@ class Cleaner():
                 case "SpringRank":
 
                     degTuple = rankTypeDescription[1]
+                    targetInstListPath = rankTypeDescription[2]
 
-                    invTemp = self.__calcSpRankForStep(degTuple, degTypeForRankSet)
+                    invTemp = self.__calcSpRankForStep(degTuple, degTypeForRankSet, targetInstListPath)
 
                     returnDict[degTypeForRankSet] = invTemp
 
@@ -354,78 +391,17 @@ class Cleaner():
                 case _:
                     pass
 
-        self.flags.raiseMVRRankCalculated()
+        self.flags.raiseFlag('RankSet')
 
-    @error.callStackRoutine
-    def plotLorentzCurve(self, argDegTuple, argIntegrate):
-
-        if(not(isinstance(argDegTuple, tuple) and argIntegrate in [0, 1])):
-            return None
-        
-        error.LOGGER.report("Plotting Lorentz Curve on # of Alumni", error.LogType.INFO)
-
-        instDict = self.analyzer.getInstDict()
-        numAlumniList = []
-
-        srcDegType = argDegTuple[0]
-        dstDegType = argDegTuple[1]
-
-        for institution in util.getValuesListFromDict(instDict):
-            if(institution.queryField(self.field)):
-                numAlumni = 0
-
-                for alumnus in institution.getTotalAlumniListForDeg(self.field, srcDegType):
-                    if(alumnus.query(dstDegType)):
-                        numAlumni+=1
-
-                numAlumniList.append(numAlumni)
-
-        if(1 == argIntegrate):
-
-            self.flags.raiseGiniCoeffCalculated()
-            error.LOGGER.report("Successfully Calculated Gini Coefficient on # of Alumni!", error.LogType.INFO)
-
-            return util.calGiniCoeff(numAlumniList)
-
-        (giniCoeff, xCoList, yCoList, baseList) = util.calGiniCoeff(numAlumniList)
-
-        font = {'family': 'Helvetica', 'size': 9}
-
-        plt.rc('font', **font)
-        plt.figure(figsize=(7,5), dpi=200)
-
-        titleStr = f"Lorentz Curve on Faculty Production (Field: {self.field})"
-        ylabelStr = f"Cumulative Ratio Over Total {srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production (Unit: Percentage)"
-
-        plt.title(titleStr)
-        plt.xlabel("Cumulative Ratio Over Total Number of Institutions (Unit: Percentage)")
-        plt.ylabel(ylabelStr)
-
-        plt.xlim(np.float32(0), np.float32(100))
-        plt.ylim(np.float32(0), np.float32(100))
-
-        plt.plot(xCoList, yCoList, 'bo-', markersize = 2)
-        plt.plot(baseList, baseList, color = 'black', linewidth = 0.5)
-
-        plt.fill_between(xCoList, yCoList, baseList, alpha = 0.2, color = 'grey')
-
-        plt.text(60, 40, str(giniCoeff), color='black', fontsize=7)
-
-        figPath = waiter.WAITER.getPlotPath(f"{srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production", "LorentzCurve", self.field)
-        plt.savefig(figPath)
-        plt.clf()
-
-        self.flags.raiseGiniCoeffCalculated()
-
-        error.LOGGER.report("Successfully Calculated Gini Coefficient on # of Alumni!", error.LogType.INFO)
-
-        return giniCoeff
+    # ====================================================== #
+    # 2.b. Methods for Calculation of Metrics
+    # ====================================================== #
     
     @error.callStackRoutine
     def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender, argDegTuple):
         rankMoveList = []
 
-        if(not self.flags.ifMVRRankCalculated()):
+        if(not self.flags.ifRaised('RankSet')):
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
         
@@ -446,7 +422,7 @@ class Cleaner():
     @error.callStackRoutine
     def calcAvgMVRMoveForRange(self, argRangeTuple, argDegTuple):
 
-        if(not self.flags.ifMVRRankCalculated()):
+        if(not self.flags.ifRankSet):
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
         elif(not(isinstance(argRangeTuple, tuple) and isinstance(argDegTuple, tuple))):
@@ -523,11 +499,15 @@ class Cleaner():
                             rankMoveList.append(rankMove)
 
         return util.getMean(rankMoveList)
+    
+    # ====================================================== #
+    # 2.c. Methods for Plotting
+    # ====================================================== #
 
     @error.callStackRoutine
     def plotRankMove(self, argRangeTuple: tuple, argDegTuple: tuple):
 
-        if(not self.flags.ifMVRRankCalculated()):
+        if(not self.flags.ifRaised('RankSet')):
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
         elif(not(isinstance(argRangeTuple, tuple) and isinstance(argDegTuple, tuple))):
@@ -656,7 +636,7 @@ class Cleaner():
     @error.callStackRoutine
     def plotGenderRatio(self):
 
-        if(not self.flags.ifMVRRankCalculated()):
+        if(not self.flags.ifRaised('RankSet')):
             error.LOGGER.report("Attempt denied. MVR ranks are not pre-calculated.", error.LogType.ERROR)
             return 0
 
@@ -843,10 +823,86 @@ class Cleaner():
         
         plt.legend()
 
-        figPath = waiter.WAITER.getPlotPath(f"NonKR_{srcDegType.toStr('label')}_{dstDegType.toStr('label')}", "Bar", self.field)
+        figPath = waiter.WAITER.getPlotPath(f"NonKR_{srcDegType.toStr('label')}_{dstDegType.toStr('label')}_{argSizeOfCluster}", "Bar", self.field)
 
         plt.savefig(figPath)
         plt.clf()
+
+    @error.callStackRoutine
+    def plotLorentzCurve(self, argDegTuple, argIntegrate):
+
+        if(not(isinstance(argDegTuple, tuple) and argIntegrate in [0, 1])):
+            return None
+        
+        error.LOGGER.report("Plotting Lorentz Curve on # of Alumni", error.LogType.INFO)
+
+        instDict = self.analyzer.getInstDict()
+        numAlumniList = []
+
+        srcDegType = argDegTuple[0]
+        dstDegType = argDegTuple[1]
+
+        for institution in util.getValuesListFromDict(instDict):
+            if(institution.queryField(self.field)):
+                numAlumni = 0
+
+                for alumnus in institution.getTotalAlumniListForDeg(self.field, srcDegType):
+                    if(alumnus.query(dstDegType)):
+                        numAlumni+=1
+
+                numAlumniList.append(numAlumni)
+
+        if(1 == argIntegrate):
+
+            error.LOGGER.report("Successfully Calculated Gini Coefficient on # of Alumni!", error.LogType.INFO)
+
+            return util.calGiniCoeff(numAlumniList)
+
+        (giniCoeff, xCoList, yCoList, baseList) = util.calGiniCoeff(numAlumniList)
+
+        font = {'family': 'Helvetica', 'size': 9}
+
+        plt.rc('font', **font)
+        plt.figure(figsize=(7,5), dpi=200)
+
+        titleStr = f"Lorentz Curve on Faculty Production (Field: {self.field})"
+        ylabelStr = f"Cumulative Ratio Over Total {srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production (Unit: Percentage)"
+
+        plt.title(titleStr)
+        plt.xlabel("Cumulative Ratio Over Total Number of Institutions (Unit: Percentage)")
+        plt.ylabel(ylabelStr)
+
+        plt.xlim(np.float32(0), np.float32(100))
+        plt.ylim(np.float32(0), np.float32(100))
+
+        plt.plot(xCoList, yCoList, 'bo-', markersize = 2)
+        plt.plot(baseList, baseList, color = 'black', linewidth = 0.5)
+
+        plt.fill_between(xCoList, yCoList, baseList, alpha = 0.2, color = 'grey')
+
+        plt.text(60, 40, str(giniCoeff), color='black', fontsize=7)
+
+        figPath = waiter.WAITER.getPlotPath(f"{srcDegType.toStr('label')}_{dstDegType.toStr('label')} Production", "LorentzCurve", self.field)
+        plt.savefig(figPath)
+        plt.clf()
+
+        error.LOGGER.report("Successfully Calculated Gini Coefficient on # of Alumni!", error.LogType.INFO)
+
+        return giniCoeff
+    
+    # ====================================================== #
+    # 2.d. Methods for Extracting Network Data
+    # ====================================================== #
+
+    @error.callStackRoutine
+    def __sortEdgeList(self):
+
+        for edgeList in util.getValuesListFromDict(self.__edgeListDict):
+            edgeList.sort_values(by=['# u', '# v'], inplace=True)
+
+    @error.callStackRoutine
+    def __sortVertexList(self):
+        self.__vertexList.sort_values(by = ['# u'], inplace = True)
 
     @error.callStackRoutine
     def __exportXLSX(self):
@@ -886,7 +942,7 @@ class Cleaner():
             self.__edgeListDict[srcDstPair].to_csv(edgeFilePath, index= False, sep = '\t')
 
     @error.callStackRoutine
-    def exportVertexAndEdgeListAs(self, argFileExtension: util.FileExt):
+    def exportVertexAndEdgeList(self, argFileExtension: util.FileExt):
 
         if(util.FileExt.XLSX == argFileExtension):
             self.__exportXLSX()
@@ -894,6 +950,49 @@ class Cleaner():
             self.__exportCSV()
         else:
             error.LOGGER.report(": ".join(["Invalid File Extension", util.fileExtToStr(argFileExtension)], error.LogType.ERROR))
+
+
+    @error.callStackRoutine
+    def exportRankList(self, argTargetDeg: career.DegreeType, argFileExtension: util.FileExt):
+
+        if(not isinstance(argTargetDeg, career.DegreeType)):
+            error.LOGGER.report(f"Invalid argTargetDeg", error.LogType.ERROR)
+            return None
+        elif(not isinstance(argFileExtension, util.FileExt)):
+            error.LOGGER.report(f"Invalid argFileExtension", error.LogType.ERROR)
+            return None
+
+
+        instList = util.getValuesListFromDict(self.analyzer.getInstDict())
+
+        rank2InstDict = {}
+
+        for inst in instList:
+            department = inst.getFieldIfExists(self.field)
+
+            if(None != department):    #institution has self.field field
+
+                rank = inst.getRankAt(self.field, argTargetDeg)
+
+                if(None != rank):   #rank is valid
+                    instInfoStrList = []
+                    inst.flushInfoToList(instInfoStrList)
+
+                    rank2InstDict[rank] = ', '.join(instInfoStrList[1:])
+
+        sortedRankList = sorted(util.getKeyListFromDict(rank2InstDict))
+        sortedInstInfoStrList = [rank2InstDict[rank] for rank in sortedRankList]
+
+        dataDict = {"Rank": sortedRankList,
+                    "Inst": sortedInstInfoStrList}
+
+        rankDf = pd.DataFrame(dataDict)
+        filePath = waiter.WAITER.getCleanedFilePath("RankList", self.field, argFileExtension, argTargetDeg.toStr("label"))
+
+        if(util.FileExt.XLSX == argFileExtension):
+            return rankDf.to_excel(filePath, index= False, engine = 'openpyxl')
+        elif(util.FileExt.CSV == argFileExtension):
+            return rankDf.to_csv(filePath, sep='\t', index=False)
 
 if(__name__ == '__main__'):
 

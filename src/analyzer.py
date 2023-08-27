@@ -15,53 +15,82 @@ import matplotlib.pyplot as plt
 import numpy as np
 import waiter
 
-"""
-class Analyzer
-
-Analyzing method added. 
-This class encapsulates cleaners over different fields.
-
-
-"""
 class Analyzer:
+
+    # ================================================================================== #
+    # 0. Constructor
+    # ================================================================================== #
 
     @error.callStackRoutine
     def __init__(self):
         
         self.__cleanerDict = {}
-        self.instIdDict = {}
-        self.instDict = {}
+        # * Dictionary for managing Cleaners
+        # Key: Field (str)
+        # Value: Cleaner Object (cleaner.Cleaner)
 
-        self.__cleanedFlag = 0
+        self.instIdDict = {}
+        # * Dictionary for managing Institution IDs
+        # Key: Institution Info (tuple)
+        # Value: Institution ID (int)
+
+        self.instDict = {}
+        # * Dictionary for managing Institution Objects
+        # Key: Institution ID (int)
+        # Value: Institution Object (institution.Institution)
+
+        self.flags = util.Flag(["Cleaned"])
+        # * util.Flag Object to manage execution flow
 
         self.__nextPID = 1
+        # * Integer that indicates next Personal ID
+
+    # ================================================================================== #
+    # 1. Methods for Management
+    # ================================================================================== #
+
+    # ====================================================== #
+    # 1.a. Methods for Managing Cleaners
+    # ====================================================== #
 
     @error.callStackRoutine
-    def getNextPID(self):
-        pID = self.__nextPID
-        self.__nextPID += 1
+    def __queryCleanerDict(self, argField):
+        # str -> int
+        # Returns 1 if argField is among the keys of self.__cleanerDict, else 0
 
-        return pID
-    
+        return int(argField in self.__cleanerDict)
+
     @error.callStackRoutine
-    def isClosedSys(self):
-        return "CLOSED" == setting.PARAM["Basic"]["networkType"]
-    
-    @error.callStackRoutine
-    def __raiseCleanedFlag(self):
-        self.__cleanedFlag = 1
-    
-    @error.callStackRoutine
-    def __ifCleanedFlagNotRaised(self):
-        return int(0 == self.__cleanedFlag)
+    def getCleanerFor(self, argField: str):
+        # str -> None / cleaner.Cleaner
+        # Returns cleaner.Cleaner Object if it is successful, else None
+
+        if(util.isEmptyData(argField)):
+            error.LOGGER.report("Attempt to generate Cleaner with empty value is suppressed", error.LogType.INFO)
+            return None
+
+        if(0 == self.__queryCleanerDict(argField)):
+            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField, self.isClosedSys())
+            error.LOGGER.report("Got New Cleaner", error.LogType.INFO)
         
+        return self.__cleanerDict[argField]
+
+    # ====================================================== #
+    # 1.b. Methods for Managing Institutions
+    # ====================================================== #
+
     @error.callStackRoutine
-    def __queryInstDictById(self, argInstId):
+    def __queryInstDictById(self, argInstId: int) -> int:
+        # int -> int
+        # Returns 1 if argInstId is among the keys of self.instDict, else 0 
 
         return int(argInstId in self.instDict)
     
     @error.callStackRoutine
     def getInstitution(self, argInstInfo: institution.InstInfo, argField: str) -> institution.Institution:
+        # institution.InstInfo, str -> institution.Institution
+        # Returns institution.Institution object based on argInstInfo and argField
+        # ! Makes new institution.Institution object if it does not exist
 
         if(0 == self.__queryInstDictById(argInstInfo.instId)):
             self.instDict[argInstInfo.instId] = institution.Institution(argInstInfo)
@@ -72,7 +101,10 @@ class Analyzer:
         return self.instDict[argInstInfo.instId]
     
     @error.callStackRoutine
-    def getExistingInstitution(self, argInstId) -> institution.Institution:
+    def getExistingInstitution(self, argInstId: int) -> institution.Institution:
+        # int -> institution.Institution / None
+        # Returns institution.Institution object based on argInstId
+        # ! Does not make new institution.Institution object even if it does not exist
 
         if(0 == self.__queryInstDictById(argInstId)):
             error.LOGGER.report("Invalid Institution ID", error.LogType.WARNING)
@@ -81,7 +113,10 @@ class Analyzer:
         return self.instDict[argInstId]
     
     @error.callStackRoutine
-    def getExistingInstitutionByName(self, argInstName) -> institution.Institution:
+    def getExistingInstitutionByName(self, argInstName: str) -> institution.Institution:
+        # str -> institution.Institution / None
+        # Returns institution.Institution object based on argInstName
+        # ! Does not make new institution.Institution object even if it does not exist
 
         for inst in util.getValuesListFromDict(self.instDict):
 
@@ -92,19 +127,29 @@ class Analyzer:
     
     @error.callStackRoutine
     def getInstDict(self):
+        # -> dict
+        # Returns self.instDict
+
         return self.instDict
     
     @error.callStackRoutine
     def getInstMVRRankPhysics(self, argInst):
+        # institution.Institution -> int
+        # Returns Rank at 'Physics' 
+
         return argInst.getRankAt('Physics', institution.RankType.SPRANK)
     
     @error.callStackRoutine
     def getInstMVRRankCS(self, argInst):
+        # institution.Institution -> int
+        # Returns Rank at 'Computer Science' 
+
         return argInst.getRankAt('Computer Science', institution.RankType.SPRANK)
-    
     
     @error.callStackRoutine
     def printAllInstitutions(self, **argOptions):
+        # dict -> 
+        # Prints out various informations about current instutions
 
         optionList = ['based', 'field', 'granularity']
 
@@ -140,24 +185,10 @@ class Analyzer:
         elif('alumni' == optionDict["granularity"]):
             for item in itemDict:
                 item.printInfo("all")
-    
-    @error.callStackRoutine
-    def __queryCleanerDict(self, argField):
 
-        return int(argField in self.__cleanerDict)
-
-    @error.callStackRoutine
-    def getCleanerFor(self, argField):
-
-        if(util.isEmptyData(argField)):
-            error.LOGGER.report("Attempt to generate Cleaner with empty value is suppressed",error.LogType.INFO)
-            return None
-
-        if(0 == self.__queryCleanerDict(argField)):
-            self.__cleanerDict[argField] = cleaner.Cleaner(self, argField, self.isClosedSys())
-            error.LOGGER.report("Got New Cleaner", error.LogType.INFO)
-        
-        return self.__cleanerDict[argField]
+    # ====================================================== #
+    # 1.c. Methods for Managing Institution IDs
+    # ====================================================== #
 
     @error.callStackRoutine
     def getInstIdFor(self, argInstInfo: institution.InstInfo):
@@ -186,7 +217,6 @@ class Analyzer:
 
     @error.callStackRoutine
     def printInstIdDict(self):
-
         print(self.instIdDict)
 
     @error.callStackRoutine
@@ -207,12 +237,41 @@ class Analyzer:
             error.LOGGER.report("Failed to Initialize InstID Dictionary", error.LogType.WARNING)
         return returnValue
     
+    # ====================================================== #
+    # 1.d. Methods for Managing Personal IDs
+    # ====================================================== #
+
+    @error.callStackRoutine
+    def getNextPID(self):
+        pID = self.__nextPID
+        self.__nextPID += 1
+
+        return pID
+    
+    # ====================================================== #
+    # 1.e. Others
+    # ====================================================== #
+    
+    @error.callStackRoutine
+    def isClosedSys(self):
+        return "CLOSED" == setting.PARAM["Basic"]["networkType"]
+    
+    # ================================================================================== #
+    # 2. Methods for Analysis
+    # ================================================================================== #
+
+    # ====================================================== #
+    # 2.a. Methods for Cleaning Data
+    # ====================================================== #
+    
     @error.callStackRoutine
     def __cleanDataForFile(self, argFilePath):
 
         targetDfDict = util.readFileFor(argFilePath, [util.FileExt.XLSX, util.FileExt.CSV])
         targetRow = None
         field = None
+
+        print(f"Cleaning File: {argFilePath}")
 
         for targetInst in util.getKeyListFromDict(targetDfDict):
             targetDf = targetDfDict[targetInst]
@@ -250,45 +309,100 @@ class Analyzer:
             if('.xlsx' == os.path.splitext(fileName)[1]):
                 self.__cleanDataForFile(os.path.join(targetDir, fileName))
 
-        self.__raiseCleanedFlag()
+        self.flags.raiseFlag("Cleaned")
 
         error.LOGGER.report("Data are Cleaned Now!", error.LogType.INFO)
     
+    # ====================================================== #
+    # 2.b. Methods for Setting Ranks
+    # ====================================================== #
+
     @error.callStackRoutine
-    def exportVertexAndEdgeListFor(self, argField, argFileExtension: util.FileExt):
+    def __setRanksFor(self, argField):
+        if(type(argField) != str):
+            error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
+            return 0
 
-        if(self.__ifCleanedFlagNotRaised()):
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
-
+            return 0
+        
         if(0 == self.__queryCleanerDict(argField)):
             error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
             return 0
         
-        self.__cleanerDict[argField].exportVertexAndEdgeListAs(argFileExtension)
+        error.LOGGER.report(' '.join(["Calculating Ranks for", argField]), error.LogType.INFO)
 
-        return 1
-
-    @error.callStackRoutine
-    def exportVertexAndEdgeListForAll(self, argFileExtension: util.FileExt):
-
-        if(self.__ifCleanedFlagNotRaised()):
-            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
-            return 0
-
-        error.LOGGER.report(" ".join(["Exporting All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-
-            if(str == type(cleaner.field)):
-                cleaner.exportVertexAndEdgeListAs(argFileExtension)
-
-        error.LOGGER.report(" ".join(["Exported All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
-        return 1
+        return self.__cleanerDict[argField].setRanks()
     
     @error.callStackRoutine
-    def plotLorentzCurveFor(self, argField, argDegTuple, argIntegrated):
+    def setRanks(self):
 
-        if(self.__ifCleanedFlagNotRaised()):
+        if(not self.flags.ifRaised("Cleaned")):
+            error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
+            return 0
+        
+        error.LOGGER.report("Calculating MVR Ranks for All Fields", error.LogType.INFO)
+
+        returnDict = {}
+
+        for field in util.getKeyListFromDict(self.__cleanerDict):
+            returnDict[field] = self.__setRanksFor(field)
+
+        error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
+
+        return returnDict
+    
+    # ====================================================== #
+    # 2.c. Methods for Calculation of Metrics
+    # ====================================================== #
+    
+    @error.callStackRoutine
+    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender, argDegTuple: tuple):
+
+        returnDict = {}
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveBasedOnGender(argGender, argDegTuple)
+
+        return returnDict
+
+    @error.callStackRoutine
+    def calcAvgMVRMoveForRange(self, argRangeTuple: tuple, argDegTuple: tuple):
+
+        returnDict = {}
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveForRange(argRangeTuple, argDegTuple)
+
+        return returnDict
+    
+    # ====================================================== #
+    # 2.d. Methods for Plotting
+    # ====================================================== #
+
+    @error.callStackRoutine
+    def plotRankMove(self, argRangeTuple, argDegTuple):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotRankMove(argRangeTuple, argDegTuple)
+
+    @error.callStackRoutine
+    def plotGenderRatio(self):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotGenderRatio()
+
+    @error.callStackRoutine
+    def plotNonKR(self, argDegTuple: tuple, argKROnly, argSizeOfCluster):
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+            cleaner.plotNonKR(argDegTuple, argKROnly, argSizeOfCluster)
+
+    @error.callStackRoutine
+    def __plotLorentzCurveFor(self, argField, argDegTuple, argIntegrated):
+
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
 
@@ -299,9 +413,9 @@ class Analyzer:
         return self.__cleanerDict[argField].plotLorentzCurve(argDegTuple, argIntegrated)
     
     @error.callStackRoutine
-    def plotLorentzCurveForAll(self, argDegTuple):
+    def plotLorentzCurve(self, argDegTuple):
 
-        if(self.__ifCleanedFlagNotRaised()):
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return dict()
         
@@ -310,15 +424,15 @@ class Analyzer:
         giniCoeffDict = {}
 
         for field in util.getKeyListFromDict(self.__cleanerDict):
-            giniCoeffDict[field] = self.plotLorentzCurveFor(field, argDegTuple, 0)
+            giniCoeffDict[field] = self.__plotLorentzCurveFor(field, argDegTuple, 0)
 
         error.LOGGER.report("Sucesssfully Plotted for All Fields!", error.LogType.INFO)
         return giniCoeffDict
-    
+
     @error.callStackRoutine
     def plotLorentzCurveIntegrated(self, argDegTuple):
 
-        if(self.__ifCleanedFlagNotRaised()):
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return dict()
         elif(not isinstance(argDegTuple, tuple)):
@@ -350,14 +464,14 @@ class Analyzer:
         plt.ylabel(ylabelStr)
 
         plt.xlim(np.float32(0), np.float32(100))
-        plt.ylim(np.float32(-1), np.float32(100))
+        plt.ylim(np.float32(0), np.float32(100))
 
         for field in util.getKeyListFromDict(self.__cleanerDict):
-            (giniCoeffDict[field], xCoList, yCoList, baseList) = self.plotLorentzCurveFor(field, argDegTuple, 1)
+            (giniCoeffDict[field], xCoList, yCoList, baseList) = self.__plotLorentzCurveFor(field, argDegTuple, 1)
 
             plt.plot(xCoList, yCoList, color = colorList[colorPointer], linewidth = 1.5, label = field)
             plt.scatter(markerXCoList, [util.sampleLinePlot(xCoList, yCoList, index) for index in markerXCoList], \
-                        c = colorList[colorPointer], s = 20)
+                        c = colorList[colorPointer], s = 20, clip_on = False, alpha = 1)
 
             plt.plot(baseList, baseList, color = 'black', linewidth = 1)
 
@@ -372,117 +486,46 @@ class Analyzer:
 
         error.LOGGER.report("Sucesssfully Plotted for All Fields!", error.LogType.INFO)
         return giniCoeffDict
-
     
-    @error.callStackRoutine
-    def calcRanksFor(self, argField):
-        if(type(argField) != str):
-            error.LOGGER.report("Field name should be a string", error.LogType.ERROR)
-            return 0
 
-        if(self.__ifCleanedFlagNotRaised()):
+    # ====================================================== #
+    # 2.e. Methods for Extracting Network Data
+    # ====================================================== #
+
+    @error.callStackRoutine
+    def exportVertexAndEdgeList(self, argFileExtension: util.FileExt):
+
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
-        
-        if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field Name", error.LogType.ERROR)
-            return 0
-        
-        error.LOGGER.report(' '.join(["Calculating Ranks for", argField]), error.LogType.INFO)
 
-        return self.__cleanerDict[argField].calcRank()
-    
+        error.LOGGER.report(" ".join(["Exporting All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
+
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
+
+            if(str == type(cleaner.field)):
+                cleaner.exportVertexAndEdgeList(argFileExtension)
+
+        error.LOGGER.report(" ".join(["Exported All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
+        return 1
+
     @error.callStackRoutine
-    def calcRanksForAll(self):
+    def exportRankList(self, argTargetDeg, argFileExtension: util.FileExt):
 
-        if(self.__ifCleanedFlagNotRaised()):
+        if(not self.flags.ifRaised("Cleaned")):
             error.LOGGER.report("Attempt denied. Data are not cleaned yet.", error.LogType.ERROR)
             return 0
-        
-        error.LOGGER.report("Calculating MVR Ranks for All Fields", error.LogType.INFO)
 
-        returnDict = {}
+        error.LOGGER.report(" ".join(["Exporting RankList for All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
 
-        for field in util.getKeyListFromDict(self.__cleanerDict):
-            returnDict[field] = self.calcRanksFor(field)
+        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
 
-        error.LOGGER.report("Sucesssfully Calculated MVR Ranks for All Fields!", error.LogType.INFO)
+            if(str == type(cleaner.field)):
+                cleaner.exportRankList(argTargetDeg, argFileExtension)
 
-        return returnDict
+        error.LOGGER.report(" ".join(["Exported RankList for All Fields as", util.fileExtToStr(argFileExtension)]), error.LogType.INFO)
+        return 1
     
-    @error.callStackRoutine
-    def calcAvgMVRMoveBasedOnGender(self, argGender: util.Gender, argDegTuple: tuple):
-
-        returnDict = {}
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveBasedOnGender(argGender, argDegTuple)
-
-        return returnDict
-    
-    @error.callStackRoutine
-    def calcAvgMVRMoveBasedOnGenderForField(self, argGender: util.Gender, argDegTuple: tuple, argField: str):
-
-        if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
-
-        returnDict = {}
-
-        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveBasedOnGender(argGender, argDegTuple)
-
-        return returnDict
-
-    @error.callStackRoutine
-    def calcAvgMVRMoveForRange(self, argRangeTuple: tuple, argDegTuple: tuple):
-
-        returnDict = {}
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            returnDict[cleaner.field] = cleaner.calcAvgMVRMoveForRange(argRangeTuple, argDegTuple)
-
-        return returnDict
-
-    @error.callStackRoutine
-    def calcAvgMVRMoveForRangeForField(self, argRangeTuple: tuple, argDegTuple: tuple, argField: str):
-
-        if(0 == self.__queryCleanerDict(argField)):
-            error.LOGGER.report("Invalid Field.", error.LogType.ERROR)
-
-        returnDict = {}
-
-        returnDict[argField] = self.getCleanerFor(argField).calcAvgMVRMoveForRange(argRangeTuple, argDegTuple)
-
-        return returnDict
-
-    @error.callStackRoutine
-    def plotRankMoveForGender(self, argGender: util.Gender, **argOptions):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotRankMoveForGender(argGender, **argOptions)
-
-    @error.callStackRoutine
-    def plotRankMoveCompareForGender(self, **argOptions):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotRankMoveCompareForGender(**argOptions)
-
-    @error.callStackRoutine
-    def plotRankMove(self, argRangeTuple, argDegTuple):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotRankMove(argRangeTuple, argDegTuple)
-
-    @error.callStackRoutine
-    def plotGenderRatio(self):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotGenderRatio()
-
-    @error.callStackRoutine
-    def plotNonKR(self, argDegTuple: tuple, argKROnly, argSizeOfCluster):
-
-        for cleaner in util.getValuesListFromDict(self.__cleanerDict):
-            cleaner.plotNonKR(argDegTuple, argKROnly, argSizeOfCluster)
 
 if(__name__ == '__main__'):
 

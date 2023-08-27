@@ -35,7 +35,14 @@ fieldClassificationDict = {'Physics': ['Physics', 'Applied Physics', 'Electrical
                                         'Computer', 'ComputerScience', 'Computing', 'Department of Computer Science and Engineering', \
                                         'Electrical Engineering and Computer Science', 'Information and Communication Engineering', \
                                         'Information Convergence', 'Mobile Systems Engineering', 'Multimedia Engineering', \
-                                        'Software and Computer Engineering', 'Software Science', 'Software']}
+                                        'Software and Computer Engineering', 'Software Science', 'Software'],
+                            'Biology' : [ 'Microbiology', 'Bioscience', 'biosystemscience', 'Biology and Chemistry', 'life sciences', \
+                                        'System Biotechnology', 'Life science', 'Biological Sciences', 'Life Sciences', \
+                                        'Biology', 'marine lifesciences', 'Department of Biomedical Science', 'APPLIED BIOLOGY.', \
+                                        'Agricultural Biology', 'Bio Convergence Science', 'Molecular Biology', 'biological sciences', \
+                                        'Chemistry & Life Science', 'Biotechnology', 'Systems Biology', 'Biological Science and Technology', \
+                                        'Biology', 'life science', 'microbiology', 'Department of Life Science', 'Department of Biological Sciences', \
+                                        'Genetic Biotechnology', 'Marine Molecular Bioscience', 'biotechnology',]}
 
 class RankType(Enum):
 
@@ -62,9 +69,55 @@ class HistType(Enum):
     LOCAL = auto()
     GLOBAL = auto()
 
-class Mode(Enum):
+class Flag:
+    def __init__(self, argLabelList) -> None:
 
-    GLOBAL = auto()
+        if(not isinstance(argLabelList, list)):
+            return None
+        elif(any(not isinstance(label, str) for label in argLabelList)):
+             return None
+            
+        self.numLabel = len(argLabelList)
+        self.labelList = argLabelList
+
+        self.flagList = [False] * self.numLabel
+
+    def __query(self, argLabel):
+        if(argLabel in self.labelList):
+            return self.labelList.index(argLabel)
+        else:
+            return None
+        
+    def raiseFlag(self, argLabel):
+        
+        index = self.__query(argLabel)
+
+        if(None == index):
+            return None
+        
+        self.flagList[index] = True
+
+        return self.flagList[index]
+    
+    def lowerFlag(self, argLabel):
+        
+        index = self.__query(argLabel)
+
+        if(None == index):
+            return None
+        
+        self.flagList[index] = False
+
+        return self.flagList[index]
+
+    def ifRaised(self, argLabel):
+        
+        index = self.__query(argLabel)
+
+        if(None == index):
+            return None
+        
+        return self.flagList[index]
 
 class TypoHistory:
     def __init__(self, argAbled):
@@ -83,10 +136,14 @@ class TypoHistory:
         self.localConfig = configparser.ConfigParser(allow_no_value = True)
 
         self.localHistoryDict = {}
-        self.abled = 1
 
-        if(not argAbled):
-            self.abled = 0
+        match argAbled:
+            case "ENABLE":
+                self.abled = 1
+            case "DISABLE":
+                self.abled = 0
+            case _:
+                self.abled = 1
     
     @error.callStackRoutine
     def __addTripletToConfig(self, argConfigType, argSrcStr1, argSrcStr2, argDstStr):
@@ -837,6 +894,14 @@ def listsToDataFrame(argColumnList, *argLists):
         dataDict[argColumnList[index]] = lists[index]
 
     return pd.DataFrame(dataDict)
+
+@error.callStackRoutine
+def matrixToDataFrame(argMatrix, argRowLabelList, argColLabelList):
+    return pd.DataFrame(data = argMatrix, columns= argColLabelList, index=argRowLabelList)
+
+@error.callStackRoutine
+def calcSparsity(argMatrix):
+    return 1.0 - (np.count_nonzero(argMatrix) / float(argMatrix.size))
 
 if(__name__ == '__main__'):
 

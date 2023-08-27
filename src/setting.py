@@ -1,3 +1,9 @@
+"""
+Author: Woojin Jung (GitHub: woojinj-01)
+Email: blankspace@kaist.ac.kr
+
+"""
+
 import configparser
 import os
 import error
@@ -104,7 +110,14 @@ class Setting:
 
                 match rankTypeStr:
                     case "SpringRank":
-                        degTypeList = descripStr.split("->")
+
+                        parsedDescripStrList = descripStr.split(", ")
+
+                        if(2 != len(parsedDescripStrList)):
+                            return 0
+                        
+                        degTypeList = parsedDescripStrList[0].split("->")
+                        filePathStr = parsedDescripStrList[1] if("None"!=parsedDescripStrList[1]) else None
 
                         if(2!=len(degTypeList)):
                             return 0
@@ -121,8 +134,8 @@ class Setting:
                         
                         if(career.DegreeType[dstDegType] not in self.param["Basic"]["targetDeg"]):
                             return 0
-                            
-                        self.param[section][career.DegreeType[deg]] = (rankTypeStr, (career.DegreeType[srcDegType], career.DegreeType[dstDegType]))
+                        
+                        self.param[section][career.DegreeType[deg]] = (rankTypeStr, (career.DegreeType[srcDegType], career.DegreeType[dstDegType]), filePathStr)
 
                     case "Custom":
                         filePathStr = descripStr

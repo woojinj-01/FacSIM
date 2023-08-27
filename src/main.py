@@ -26,19 +26,16 @@ def parseOptions():
     
     parser.add_argument('-f', '--file', action = 'store_true',\
                          help='Redirect stdout stream to result.txt, except for user interactive message.', default= False)
-    
-    """
-    parser.add_argument('-c', '--correction', action = 'store_true', \
-                        help= 'Enables user-interactive typo correction. Disable this mode for faster, but coarser analysis.\
-                            Strongly recommended to be abled when precise results are required. Note that non-interactive typo corrections \
-                                will be still applied even if the mode is turned off.')
-    """
 
     parser.add_argument('-c', '--correction', choices = ['ENABLE', 'DISABLE'], \
                         help= 'Enables user-interactive typo correction. Disable this mode for faster, but coarser analysis.\
                             Strongly recommended to be abled when precise results are required. Note that non-interactive typo corrections \
                                 will be still applied even if the mode is turned off.', default='ENABLE')
-
+    
+    parser.add_argument('-m', '--message', type = str,\
+                         help='Specify a message that will be stored in the results folder,\
+                            in order to provide more description for the trial.', default= False)
+    
     args = parser.parse_args()
 
     
@@ -47,7 +44,6 @@ def parseOptions():
 
 #not tracked by callstack routine
 def init():
-    #TODO: Should implement Joongang Rank Part
 
     args = parseOptions()
 
@@ -85,6 +81,13 @@ def init():
         resultFilePath = waiter.WAITER.getResultFilePath()
         sys.stdout = open(resultFilePath, 'w')
 
+    if(args.message):
+        
+        messageFilePath = waiter.WAITER.getMessageFilePath()
+
+        with open(messageFilePath, "w") as file:
+            file.write(args.message)
+
     return args
 
 if(__name__ == '__main__'):
@@ -100,45 +103,34 @@ if(__name__ == '__main__'):
     analyzer.loadInstIdDictFrom("../dataset/instList.xlsx")
 
     analyzer.cleanData()
-    analyzer.exportVertexAndEdgeListForAll(util.FileExt.CSV)
+    analyzer.exportVertexAndEdgeList(util.FileExt.CSV)
 
-    analyzer.calcRanksForAll()
+    analyzer.setRanks()
+
+    analyzer.exportRankList(DegreeType.PHD, util.FileExt.CSV)
 
     #analyzer.plotLorentzCurveIntegrated((DegreeType.PHD, DegreeType.AP))
-    #analyzer.plotLorentzCurveIntegrated((DegreeType.BS, DegreeType.AP))
-
-    #analyzer.calcGiniCoeffForAll((DegreeType.BS, DegreeType.AP))
-    #analyzer.calcGiniCoeffForAll((DegreeType.PHD, DegreeType.AP))
-    #analyzer.calcGiniCoeffBSForAll()
-
-
-    #print(analyzer.calcAvgMVRMoveBasedOnGender(util.Gender.MALE, (DegreeType.BS, DegreeType.AP)))
-    #print(analyzer.calcAvgMVRMoveBasedOnGender(util.Gender.FEMALE, (DegreeType.BS, DegreeType.AP)))
-
-    #print(analyzer.calcAvgMVRMoveForRange((0, 25), (DegreeType.PHD, DegreeType.AP)))
-    #print(analyzer.calcAvgMVRMoveForRange((25, 50), (DegreeType.PHD, DegreeType.AP)))
-    #print(analyzer.calcAvgMVRMoveForRange((50, 75), (DegreeType.PHD, DegreeType.AP)))
-    #print(analyzer.calcAvgMVRMoveForRange((75, 100), (DegreeType.PHD, DegreeType.AP)))
     
-    #analyzer.plotRankMove((0, 20), (DegreeType.BS, DegreeType.AP))
-    #analyzer.plotRankMove((20, 40), (DegreeType.BS, DegreeType.AP))
-    #analyzer.plotRankMove((40, 60), (DegreeType.BS, DegreeType.AP))
-    #analyzer.plotRankMove((60, 80), (DegreeType.BS, DegreeType.AP))
-    #analyzer.plotRankMove((80, 100), (DegreeType.BS, DegreeType.AP))
+    #analyzer.plotRankMove((0, 20), (DegreeType.PHD, DegreeType.AP))
+    #analyzer.plotRankMove((20, 40), (DegreeType.PHD, DegreeType.AP))
+    #analyzer.plotRankMove((40, 60), (DegreeType.PHD, DegreeType.AP))
+    #analyzer.plotRankMove((60, 80), (DegreeType.PHD, DegreeType.AP))
+    #analyzer.plotRankMove((80, 100), (DegreeType.PHD, DegreeType.AP))
 
     #analyzer.plotRankMove((0, 100), (DegreeType.PHD, DegreeType.AP))
 
     #analyzer.plotGenderRatio()
 
-    analyzer.plotNonKR((DegreeType.PHD, DegreeType.AP), False, 1)
+    #analyzer.plotNonKR((DegreeType.PHD, DegreeType.AP), False, 1)
+    #analyzer.plotNonKR((DegreeType.PHD, DegreeType.AP), False, 10)
     #analyzer.plotNonKR((DegreeType.BS, DegreeType.AP), True, 20)
     #analyzer.plotNonKR((DegreeType.PHD, DegreeType.AP), False)
     #analyzer.plotNonKRFac(career.DegreeType.BS)
     #analyzer.plotNonKRFacRatio()
 
-    analyzer.printAllInstitutions(granularity = "alumni")
+    #analyzer.printAllInstitutions(granularity = "alumni")
 
-    #status.STATTRACKER.print()
+    status.STATTRACKER.print()
 
     util.TYPOHISTORY.flush()    #mandatory
     

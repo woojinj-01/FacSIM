@@ -158,6 +158,10 @@ class Institution:
         argList.append(self.country)
 
     @error.callStackRoutine
+    def getInfoString(self):
+        return f"{self.name}, {self.region}, {self.country}"
+
+    @error.callStackRoutine
     def getField(self, argField):
 
         if(argField not in self.fieldDict):

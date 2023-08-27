@@ -1,3 +1,8 @@
+"""
+Author: Woojin Jung (GitHub: woojinj-01)
+Email: blankspace@kaist.ac.kr
+
+"""
 import datetime as dt
 import os
 import util
@@ -57,10 +62,13 @@ class Waiter:
         if(not os.path.exists(cleanedFileDir)):
             os.mkdir(cleanedFileDir)
 
-        return f"{self.baseDir}/cleaned/{argField}/{cleanedFileName}.{fileExtStr}"
+        return f"{self.baseDir}/cleaned/{argField}/{cleanedFileName}{fileExtStr}"
     
     def getLogFilePath(self):
         return f"{self.baseDir}/logFile.log"
 
     def getResultFilePath(self):
         return f"{self.baseDir}/resultFile.txt"
+    
+    def getMessageFilePath(self):
+        return f"{self.baseDir}/message.txt"
