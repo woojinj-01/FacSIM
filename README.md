@@ -19,5 +19,7 @@ Contains figures generated through ploting methods.
 Contains output of ```error.LOGGER```. ```error.LOGGER``` generates log files, seperated in terms of the date.
 #### results/YYYY_MM_DD/hh:mm:ss/resultFile.txt
 Stdout stream redirected by ```-f``` option is saved here.
-#### results/YYYY_MM_DD/hh:mm:ss/resultFile.txt
+#### results/YYYY_MM_DD/hh:mm:ss/setting.ini
 Contains configuration file of the certain simulation.
+#### results/YYYY_MM_DD/hh:mm:ss/message.txt
+(Optional) Contains a simple message about the simulation. Can be designated with -m option.
